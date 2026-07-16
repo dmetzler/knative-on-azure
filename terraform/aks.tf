@@ -11,7 +11,6 @@ resource "azurerm_kubernetes_cluster" "main" {
     node_count     = var.node_count
     vm_size        = var.node_vm_size
     vnet_subnet_id = azurerm_subnet.nodes.id
-    pod_subnet_id  = azurerm_subnet.pods.id
 
     upgrade_settings {
       max_surge = "10%"

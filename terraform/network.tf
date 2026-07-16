@@ -19,19 +19,4 @@ resource "azurerm_subnet" "nodes" {
   address_prefixes     = [var.subnet_nodes_prefix]
 }
 
-resource "azurerm_subnet" "pods" {
-  name                 = "snet-aks-pods"
-  resource_group_name  = azurerm_resource_group.main.name
-  virtual_network_name = azurerm_virtual_network.main.name
-  address_prefixes     = [var.subnet_pods_prefix]
 
-  delegation {
-    name = "aks-delegation"
-    service_delegation {
-      name = "Microsoft.ContainerService/managedClusters"
-      actions = [
-        "Microsoft.Network/virtualNetworks/subnets/join/action",
-      ]
-    }
-  }
-}
