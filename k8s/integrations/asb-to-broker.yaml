@@ -20,6 +20,8 @@ spec:
               serviceBusType: queue
               connectionString: "RAW({{asb.connection-string}})"
             steps:
+              - convertBodyTo:
+                  type: "java.lang.String"
               - setHeader:
                   name: ce-type
                   constant: "com.azure.servicebus.inbound"
