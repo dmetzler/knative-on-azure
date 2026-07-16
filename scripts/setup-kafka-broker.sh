@@ -37,13 +37,17 @@ PROPS
 
 cp "$PRODUCER_PROPS" "$CONSUMER_PROPS"
 
+ADMIN_PROPS=$(mktemp)
+cp "$PRODUCER_PROPS" "$ADMIN_PROPS"
+
 kubectl create configmap config-kafka-broker-data-plane \
   --namespace knative-eventing \
   --from-file=config-kafka-broker-producer.properties="$PRODUCER_PROPS" \
   --from-file=config-kafka-broker-consumer.properties="$CONSUMER_PROPS" \
+  --from-file=config-kafka-broker-admin.properties="$ADMIN_PROPS" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-rm -f "$PRODUCER_PROPS" "$CONSUMER_PROPS"
+rm -f "$PRODUCER_PROPS" "$CONSUMER_PROPS" "$ADMIN_PROPS"
 
 echo "=== Restarting Kafka broker pods to pick up new config ==="
 kubectl rollout restart deployment/kafka-broker-receiver -n knative-eventing 2>/dev/null || true
