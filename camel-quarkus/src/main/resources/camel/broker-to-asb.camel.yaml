@@ -1,0 +1,14 @@
+# Broker → ASB: receives CloudEvents from KNative Broker, forwards to Service Bus queue
+- from:
+    uri: "knative:event/asb.outbound"
+    parameters:
+      kind: Broker
+      name: default
+    steps:
+      - log:
+          message: "Forwarding event to ASB: ${body}"
+      - to:
+          uri: "azure-servicebus:{{asb.queue.outbound}}"
+          parameters:
+            serviceBusType: queue
+            connectionString: "RAW({{asb.connection-string}})"

@@ -1,0 +1,27 @@
+# ASB → Broker: reads from Service Bus queue, produces CloudEvents to KNative Broker
+- from:
+    uri: "azure-servicebus:{{asb.queue.inbound}}"
+    parameters:
+      serviceBusType: queue
+      connectionString: "RAW({{asb.connection-string}})"
+    steps:
+      - convertBodyTo:
+          type: "java.lang.String"
+      - setHeader:
+          name: ce-type
+          constant: "com.azure.servicebus.inbound"
+      - setHeader:
+          name: ce-source
+          constant: "/azure/servicebus/knative-inbound"
+      - setHeader:
+          name: ce-specversion
+          constant: "1.0"
+      - setHeader:
+          name: ce-id
+          expression:
+            simple: "${exchangeId}"
+      - to:
+          uri: "knative:event/com.azure.servicebus.inbound"
+          parameters:
+            kind: Broker
+            name: default
