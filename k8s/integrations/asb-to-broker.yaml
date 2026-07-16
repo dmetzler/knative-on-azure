@@ -1,0 +1,53 @@
+# ASB → Broker: reads from Service Bus queue 'knative-inbound',
+# wraps messages as CloudEvents, and sends them to the Kafka Broker.
+apiVersion: camel.apache.org/v1
+kind: Integration
+metadata:
+  name: asb-to-broker
+  namespace: default
+spec:
+  dependencies:
+    - "camel:azure-servicebus"
+    - "camel:knative"
+    - "camel:jackson"
+  sources:
+    - name: asb-to-broker.yaml
+      language: yaml
+      content: |
+        - route:
+            id: asb-to-broker
+            from:
+              uri: "azure-servicebus:knative-inbound"
+              parameters:
+                serviceBusType: queue
+                connectionString: "{{azure.servicebus.connectionString}}"
+            steps:
+              - setHeader:
+                  name: ce-type
+                  constant: "com.azure.servicebus.inbound"
+              - setHeader:
+                  name: ce-source
+                  constant: "/azure/servicebus/knative-inbound"
+              - setHeader:
+                  name: ce-specversion
+                  constant: "1.0"
+              - setHeader:
+                  name: ce-id
+                  expression:
+                    simple: "${exchangeId}"
+              - to:
+                  uri: "knative:event/com.azure.servicebus.inbound"
+                  parameters:
+                    kind: Broker
+                    name: default
+  traits:
+    knative:
+      configuration:
+        enabled: true
+    mount:
+      configuration:
+        configs:
+          - "secret:azure-servicebus-secret"
+  configuration:
+    - type: property
+      value: "azure.servicebus.connectionString={{azure-servicebus-secret:connectionString}}"

@@ -68,3 +68,9 @@ variable "eventhub_name" {
   type        = string
   default     = "knative-events"
 }
+
+variable "servicebus_namespace_name" {
+  description = "Azure Service Bus namespace name"
+  type        = string
+  default     = "sbns-knative-lab"
+}

@@ -38,3 +38,13 @@ output "eventhub_send_connection_string" {
   value     = azurerm_eventhub_authorization_rule.knative_send.primary_connection_string
   sensitive = true
 }
+
+# ----- Service Bus outputs -----
+output "servicebus_namespace" {
+  value = azurerm_servicebus_namespace.main.name
+}
+
+output "servicebus_connection_string" {
+  value     = azurerm_servicebus_namespace_authorization_rule.camel_k.primary_connection_string
+  sensitive = true
+}
