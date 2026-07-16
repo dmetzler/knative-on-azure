@@ -54,7 +54,7 @@ variable "subnet_nodes_prefix" {
 variable "subnet_pods_prefix" {
   description = "Subnet prefix for AKS pods (Azure CNI overlay)"
   type        = string
-  default     = "10.0.2.0/22"
+  default     = "10.0.4.0/22"
 }
 
 variable "eventhubs_namespace_name" {
