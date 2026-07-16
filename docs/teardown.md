@@ -62,10 +62,10 @@ terraform destroy -target=azurerm_eventhub_consumer_group.knative \
 
 | Resource | Approximate Monthly Cost |
 |----------|-------------------------|
-| AKS (2× D4s_v5) | ~€250 |
-| Event Hubs (Standard, 1 TU) | ~€10 |
-| Public IP (Kourier LB) | ~€3 |
-| **Total** | **~€263/month** |
+| AKS (2× D4s_v5) | ~$280 |
+| Event Hubs (Standard, 1 TU) | ~$11 |
+| Public IP (Kourier LB) | ~$4 |
+| **Total** | **~$295/month** |
 
 !!! tip "Save Money"
     When not in use, scale AKS to 0 nodes:
