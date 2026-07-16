@@ -19,7 +19,7 @@ kubectl create secret generic eventhub-kafka-secret \
   --from-literal=password="$SASL_CONN_STRING" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-echo "=== Configuring Kafka Broker defaults ==="
+echo "=== Configuring Kafka Broker bootstrap ==="
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: ConfigMap
@@ -30,8 +30,27 @@ data:
   default.topic.partitions: "2"
   default.topic.replication.factor: "1"
   bootstrap.servers: "${BOOTSTRAP_SERVER}"
-  auth.secret.ref.name: eventhub-kafka-secret
-  auth.secret.ref.namespace: knative-eventing
+EOF
+
+echo "=== Configuring Kafka Broker data-plane auth (SASL_SSL for Event Hubs) ==="
+# The Kafka broker data-plane reads producer/consumer properties from this ConfigMap
+SASL_JAAS="org.apache.kafka.common.security.plain.PlainLoginModule required username=\\\"\$ConnectionString\\\" password=\\\"${SASL_CONN_STRING}\\\";"
+
+KAFKA_PROPS="security.protocol=SASL_SSL
+sasl.mechanism=PLAIN
+sasl.jaas.config=${SASL_JAAS}"
+
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-kafka-broker-data-plane
+  namespace: knative-eventing
+data:
+  config-kafka-broker-producer.properties: |
+    ${KAFKA_PROPS}
+  config-kafka-broker-consumer.properties: |
+    ${KAFKA_PROPS}
 EOF
 
 echo "=== Creating a Kafka-backed Broker in default namespace ==="
