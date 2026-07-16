@@ -1,0 +1,38 @@
+# Azure Event Hubs → KNative Eventing bridge
+# Uses a ContainerSource with a lightweight Go adapter that reads from
+# Event Hubs and emits CloudEvents to the default broker.
+#
+# For production, consider: https://github.com/knative-extensions/eventing-azure
+# which provides a native EventHubsSource CRD.
+#
+# This approach uses the generic AMQP source as a starting point.
+apiVersion: sources.knative.dev/v1
+kind: ContainerSource
+metadata:
+  name: azure-eventhub-source
+  namespace: knative-eventing-sources
+spec:
+  template:
+    spec:
+      containers:
+        - image: ghcr.io/knative-extensions/eventing-azure/cmd/source:latest
+          name: eventhub-source
+          env:
+            - name: EVENTHUB_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: azure-eventhub-secret
+                  key: connectionString
+            - name: EVENTHUB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: azure-eventhub-secret
+                  key: eventHubName
+            - name: CONSUMER_GROUP
+              value: "knative-eventing"
+  sink:
+    ref:
+      apiVersion: eventing.knative.dev/v1
+      kind: Broker
+      name: default
+      namespace: default

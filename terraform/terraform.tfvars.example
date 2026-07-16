@@ -1,0 +1,5 @@
+# terraform.tfvars.example
+# Copy to terraform.tfvars and fill in your values
+
+subscription_id = "YOUR_SUBSCRIPTION_ID"
+location        = "westeurope"
