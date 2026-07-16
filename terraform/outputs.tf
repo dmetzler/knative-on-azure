@@ -63,3 +63,14 @@ output "acr_admin_password" {
   value     = azurerm_container_registry.main.admin_password
   sensitive = true
 }
+
+# ----- Workload Identity outputs -----
+output "kafka_broker_identity_client_id" {
+  description = "Client ID of the Managed Identity for Kafka Broker Workload Identity"
+  value       = azurerm_user_assigned_identity.kafka_broker.client_id
+}
+
+output "aks_oidc_issuer_url" {
+  description = "OIDC issuer URL of the AKS cluster"
+  value       = azurerm_kubernetes_cluster.main.oidc_issuer_url
+}

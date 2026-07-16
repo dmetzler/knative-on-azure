@@ -24,8 +24,9 @@ nav:
       - 2. KNative Installation: deploy/02-knative.md
       - 3. Kafka Broker + Event Hubs: deploy/03-kafka-broker.md
       - 4. Demo Application: deploy/04-demo-app.md
-      - 5. Camel-K + Service Bus Bridge: deploy/06-camel-k-asb.md
-      - 6. Production Considerations: deploy/07-production-considerations.md
+      - 5. Workload Identity (No Static Creds): deploy/05-workload-identity.md
+      - 6. Camel-K + Service Bus Bridge: deploy/06-camel-k-asb.md
+      - 7. Production Considerations: deploy/07-production-considerations.md
   - Troubleshooting: troubleshooting.md
   - Teardown: teardown.md
 
