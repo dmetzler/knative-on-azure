@@ -11,7 +11,22 @@ SASL_CONN_STRING=$(terraform output -raw kafka_sasl_connection_string)
 
 echo "   Bootstrap: ${BOOTSTRAP_SERVER}"
 
-echo "=== Configuring Kafka Broker bootstrap ==="
+echo "=== Creating auth Secret for Event Hubs (SASL_SSL) ==="
+# The Kafka Broker controller reads auth from a Secret referenced in the ConfigMap.
+# For Azure Event Hubs:
+#   protocol: SASL_SSL
+#   sasl.mechanism: PLAIN
+#   user: $ConnectionString  (literal string)
+#   password: <SAS connection string>
+kubectl create secret generic kafka-auth-secret \
+  --namespace knative-eventing \
+  --from-literal=protocol=SASL_SSL \
+  --from-literal=sasl.mechanism=PLAIN \
+  --from-literal='user=$ConnectionString' \
+  --from-literal=password="${SASL_CONN_STRING}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+echo "=== Configuring kafka-broker-config ConfigMap ==="
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: ConfigMap
@@ -22,38 +37,15 @@ data:
   default.topic.partitions: "2"
   default.topic.replication.factor: "1"
   bootstrap.servers: "${BOOTSTRAP_SERVER}"
+  auth.secret.ref.name: kafka-auth-secret
 EOF
 
-echo "=== Configuring Kafka Broker data-plane auth (SASL_SSL for Event Hubs) ==="
-# Build the properties files and apply via kubectl
-PRODUCER_PROPS=$(mktemp)
-CONSUMER_PROPS=$(mktemp)
-
-cat > "$PRODUCER_PROPS" <<PROPS
-security.protocol=SASL_SSL
-sasl.mechanism=PLAIN
-sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username="\$ConnectionString" password="${SASL_CONN_STRING}";
-PROPS
-
-cp "$PRODUCER_PROPS" "$CONSUMER_PROPS"
-
-ADMIN_PROPS=$(mktemp)
-cp "$PRODUCER_PROPS" "$ADMIN_PROPS"
-
-kubectl create configmap config-kafka-broker-data-plane \
-  --namespace knative-eventing \
-  --from-file=config-kafka-broker-producer.properties="$PRODUCER_PROPS" \
-  --from-file=config-kafka-broker-consumer.properties="$CONSUMER_PROPS" \
-  --from-file=config-kafka-broker-admin.properties="$ADMIN_PROPS" \
-  --dry-run=client -o yaml | kubectl apply -f -
-
-rm -f "$PRODUCER_PROPS" "$CONSUMER_PROPS" "$ADMIN_PROPS"
-
-echo "=== Restarting Kafka broker pods to pick up new config ==="
-kubectl rollout restart deployment/kafka-broker-receiver -n knative-eventing 2>/dev/null || true
-kubectl rollout restart statefulset/kafka-broker-dispatcher -n knative-eventing 2>/dev/null || true
+echo "=== Restarting Kafka controller to pick up new config ==="
+kubectl rollout restart deployment/kafka-controller -n knative-eventing
+kubectl rollout status deployment/kafka-controller -n knative-eventing --timeout=60s
 
 echo "=== Creating a Kafka-backed Broker in default namespace ==="
+kubectl delete broker default -n default --ignore-not-found
 cat <<'BROKEREOF' | kubectl apply -f -
 apiVersion: eventing.knative.dev/v1
 kind: Broker
@@ -75,7 +67,7 @@ kubectl apply -f "${SCRIPT_DIR}/../k8s/demo/event-display.yaml"
 
 echo ""
 echo "=== Waiting for broker to be ready ==="
-kubectl wait --for=condition=Ready broker/default -n default --timeout=120s
+kubectl wait --for=condition=Ready broker/default -n default --timeout=180s
 
 echo ""
 echo "✅ Kafka Broker ready! Backed by Azure Event Hubs."
