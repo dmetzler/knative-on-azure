@@ -11,14 +11,6 @@ SASL_CONN_STRING=$(terraform output -raw kafka_sasl_connection_string)
 
 echo "   Bootstrap: ${BOOTSTRAP_SERVER}"
 
-echo "=== Creating Kafka secret for the broker ==="
-kubectl create secret generic eventhub-kafka-secret \
-  --namespace knative-eventing \
-  --from-literal=protocol="SASL_SSL" \
-  --from-literal=sasl.mechanism="PLAIN" \
-  --from-literal=password="$SASL_CONN_STRING" \
-  --dry-run=client -o yaml | kubectl apply -f -
-
 echo "=== Configuring Kafka Broker bootstrap ==="
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
@@ -33,28 +25,32 @@ data:
 EOF
 
 echo "=== Configuring Kafka Broker data-plane auth (SASL_SSL for Event Hubs) ==="
-# The Kafka broker data-plane reads producer/consumer properties from this ConfigMap
-SASL_JAAS="org.apache.kafka.common.security.plain.PlainLoginModule required username=\\\"\$ConnectionString\\\" password=\\\"${SASL_CONN_STRING}\\\";"
+# Build the properties files and apply via kubectl
+PRODUCER_PROPS=$(mktemp)
+CONSUMER_PROPS=$(mktemp)
 
-KAFKA_PROPS="security.protocol=SASL_SSL
+cat > "$PRODUCER_PROPS" <<PROPS
+security.protocol=SASL_SSL
 sasl.mechanism=PLAIN
-sasl.jaas.config=${SASL_JAAS}"
+sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username="\$ConnectionString" password="${SASL_CONN_STRING}";
+PROPS
 
-cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: config-kafka-broker-data-plane
-  namespace: knative-eventing
-data:
-  config-kafka-broker-producer.properties: |
-    ${KAFKA_PROPS}
-  config-kafka-broker-consumer.properties: |
-    ${KAFKA_PROPS}
-EOF
+cp "$PRODUCER_PROPS" "$CONSUMER_PROPS"
+
+kubectl create configmap config-kafka-broker-data-plane \
+  --namespace knative-eventing \
+  --from-file=config-kafka-broker-producer.properties="$PRODUCER_PROPS" \
+  --from-file=config-kafka-broker-consumer.properties="$CONSUMER_PROPS" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+rm -f "$PRODUCER_PROPS" "$CONSUMER_PROPS"
+
+echo "=== Restarting Kafka broker pods to pick up new config ==="
+kubectl rollout restart deployment/kafka-broker-receiver -n knative-eventing 2>/dev/null || true
+kubectl rollout restart statefulset/kafka-broker-dispatcher -n knative-eventing 2>/dev/null || true
 
 echo "=== Creating a Kafka-backed Broker in default namespace ==="
-cat <<EOF | kubectl apply -f -
+cat <<'BROKEREOF' | kubectl apply -f -
 apiVersion: eventing.knative.dev/v1
 kind: Broker
 metadata:
@@ -68,7 +64,7 @@ spec:
     kind: ConfigMap
     name: kafka-broker-config
     namespace: knative-eventing
-EOF
+BROKEREOF
 
 echo "=== Deploying event-display sink + trigger ==="
 kubectl apply -f "${SCRIPT_DIR}/../k8s/demo/event-display.yaml"
