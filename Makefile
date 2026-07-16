@@ -10,18 +10,21 @@ IMAGE          := $(IMAGE_REGISTRY)/$(IMAGE_GROUP)/$(IMAGE_NAME):$(IMAGE_TAG)
 build:
 	cd camel-quarkus && mvn package -DskipTests
 
-## Build native binary (requires GraalVM or uses container build)
+## Build native binary (cross-compile for linux/amd64 via container build)
 native:
-	cd camel-quarkus && mvn package -Pnative -DskipTests -Dquarkus.native.container-build=true
+	cd camel-quarkus && mvn package -Pnative -DskipTests \
+		-Dquarkus.native.container-build=true \
+		-Dquarkus.native.builder-image.pull=always \
+		-Dquarkus.native.container-runtime-options=--platform=linux/amd64
 
 ## Build + container image (JVM)
 package: build
-	docker build -f camel-quarkus/src/main/docker/Dockerfile.jvm \
+	docker build --platform linux/amd64 -f camel-quarkus/src/main/docker/Dockerfile.jvm \
 		-t $(IMAGE) camel-quarkus
 
 ## Build + container image (native — multi-stage, no local GraalVM needed)
 package-native:
-	docker build -f camel-quarkus/src/main/docker/Dockerfile.native \
+	docker build --platform linux/amd64 -f camel-quarkus/src/main/docker/Dockerfile.native \
 		-t $(IMAGE) camel-quarkus
 
 ## Push image to ACR
