@@ -1,4 +1,4 @@
-# Broker → ASB: subscribes to events matching type 'asb.outbound.*'
+# Broker → ASB: subscribes to events matching type 'asb.outbound'
 # from the Kafka Broker and forwards them to Service Bus queue 'knative-outbound'.
 apiVersion: camel.apache.org/v1
 kind: Integration
@@ -14,13 +14,11 @@ spec:
     - name: broker-to-asb.yaml
       language: yaml
       content: |
-        - route:
-            id: broker-to-asb
-            from:
-              uri: "knative:event/asb.outbound"
-              parameters:
-                kind: Broker
-                name: default
+        - from:
+            uri: "knative:event/asb.outbound"
+            parameters:
+              kind: Broker
+              name: default
             steps:
               - log:
                   message: "Forwarding event to ASB: ${body}"

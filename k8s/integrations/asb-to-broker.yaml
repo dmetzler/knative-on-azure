@@ -14,13 +14,11 @@ spec:
     - name: asb-to-broker.yaml
       language: yaml
       content: |
-        - route:
-            id: asb-to-broker
-            from:
-              uri: "azure-servicebus:knative-inbound"
-              parameters:
-                serviceBusType: queue
-                connectionString: "{{azure.servicebus.connectionString}}"
+        - from:
+            uri: "azure-servicebus:knative-inbound"
+            parameters:
+              serviceBusType: queue
+              connectionString: "{{azure.servicebus.connectionString}}"
             steps:
               - setHeader:
                   name: ce-type
