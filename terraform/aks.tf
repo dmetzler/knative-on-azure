@@ -38,9 +38,3 @@ resource "azurerm_kubernetes_cluster" "main" {
   }
 }
 
-# Role assignment: AKS needs Network Contributor on the VNet for pod subnet
-resource "azurerm_role_assignment" "aks_network" {
-  scope                = azurerm_virtual_network.main.id
-  role_definition_name = "Network Contributor"
-  principal_id         = azurerm_kubernetes_cluster.main.identity[0].principal_id
-}
