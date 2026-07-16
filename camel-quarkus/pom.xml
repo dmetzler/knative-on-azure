@@ -11,8 +11,8 @@
   <description>Camel Quarkus bridge between Azure Service Bus and KNative Eventing</description>
 
   <properties>
-    <quarkus.version>3.21.3</quarkus.version>
-    <camel-quarkus.version>3.21.0</camel-quarkus.version>
+    <quarkus.version>3.36.0</quarkus.version>
+    <camel-quarkus.version>3.36.0</camel-quarkus.version>
     <maven.compiler.source>21</maven.compiler.source>
     <maven.compiler.target>21</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
