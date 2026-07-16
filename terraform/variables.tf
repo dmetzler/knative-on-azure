@@ -36,7 +36,7 @@ variable "node_vm_size" {
 variable "kubernetes_version" {
   description = "Kubernetes version for AKS"
   type        = string
-  default     = "1.30"
+  default     = "1.31"
 }
 
 variable "vnet_address_space" {
