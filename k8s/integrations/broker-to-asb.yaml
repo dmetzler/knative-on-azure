@@ -10,6 +10,9 @@ spec:
     - "camel:azure-servicebus"
     - "camel:knative"
     - "camel:jackson"
+  configuration:
+    - type: secret
+      value: azure-servicebus-secret
   sources:
     - name: broker-to-asb.yaml
       language: yaml
@@ -26,15 +29,8 @@ spec:
                   uri: "azure-servicebus:knative-outbound"
                   parameters:
                     serviceBusType: queue
-                    connectionString: "{{azure.servicebus.connectionString}}"
+                    connectionString: "{{connectionString}}"
   traits:
     knative:
       configuration:
         enabled: true
-    mount:
-      configuration:
-        configs:
-          - "secret:azure-servicebus-secret"
-  configuration:
-    - type: property
-      value: "azure.servicebus.connectionString={{azure-servicebus-secret:connectionString}}"
