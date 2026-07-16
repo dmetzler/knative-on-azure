@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # KNative versions
-KNATIVE_VERSION="${KNATIVE_VERSION:-1.16.0}"
+KNATIVE_VERSION="${KNATIVE_VERSION:-1.22.1}"
 
 echo "=== Installing KNative Serving v${KNATIVE_VERSION} ==="
 kubectl apply -f "https://github.com/knative/serving/releases/download/knative-v${KNATIVE_VERSION}/serving-crds.yaml"
