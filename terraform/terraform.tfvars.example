@@ -1,5 +1,10 @@
-# terraform.tfvars.example
-# Copy to terraform.tfvars and fill in your values
+# Azure subscription ID (required)
+subscription_id = "your-azure-subscription-id"
 
-subscription_id = "YOUR_SUBSCRIPTION_ID"
-location        = "westeurope"
+# Azure region (optional, default: westeurope)
+# location = "westeurope"
+
+# Resource naming (optional)
+# resource_group_name     = "rg-knative-lab"
+# cluster_name            = "aks-knative-lab"
+# eventhubs_namespace_name = "evhns-knative-lab"

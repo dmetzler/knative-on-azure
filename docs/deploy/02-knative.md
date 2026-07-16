@@ -37,10 +37,9 @@ KNative v1.22.1 has a bug where the `kafka-broker-dispatcher` StatefulSet refere
 This script:
 
 1. Downloads the `eventing-kafka-broker.yaml` manifest
-2. Patches the missing volume definition
+2. Patches the missing `contract-resources` volume definition (v1.22.1 bug)
 3. Applies the patched manifest
-4. Installs `eventing-kafka-source` and `eventing-kafka-channel` components
-5. Waits for all StatefulSets to be ready
+4. Waits for the `kafka-broker-dispatcher` StatefulSet to be ready
 
 ## Verify
 
@@ -68,8 +67,6 @@ eventing-webhook-xxx           Running
 kafka-broker-dispatcher-0      Running
 kafka-broker-receiver-xxx      Running
 kafka-controller-xxx           Running
-kafka-source-dispatcher-0      Running
-kafka-channel-dispatcher-0     Running
 ```
 
 ## Configure Domain (Optional)

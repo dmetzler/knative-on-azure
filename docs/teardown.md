@@ -34,7 +34,6 @@ This removes:
 ```bash
 # Remove Kafka components
 kubectl delete -f "https://github.com/knative-extensions/eventing-kafka-broker/releases/download/knative-v1.22.1/eventing-kafka-broker.yaml"
-kubectl delete -f "https://github.com/knative-extensions/eventing-kafka-broker/releases/download/knative-v1.22.1/eventing-kafka-source.yaml"
 
 # Remove KNative Eventing
 kubectl delete -f "https://github.com/knative/eventing/releases/download/knative-v1.22.1/eventing-core.yaml"

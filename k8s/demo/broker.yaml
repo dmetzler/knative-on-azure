@@ -1,14 +1,15 @@
-# Default broker in the default namespace
+# Kafka Broker in the default namespace
+# Uses the Kafka broker class backed by Azure Event Hubs
 apiVersion: eventing.knative.dev/v1
 kind: Broker
 metadata:
   name: default
   namespace: default
   annotations:
-    eventing.knative.dev/broker.class: MTChannelBasedBroker
+    eventing.knative.dev/broker.class: Kafka
 spec:
   config:
     apiVersion: v1
     kind: ConfigMap
-    name: config-br-defaults
+    name: kafka-broker-config
     namespace: knative-eventing
