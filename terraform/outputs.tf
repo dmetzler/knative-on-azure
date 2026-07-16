@@ -48,3 +48,18 @@ output "servicebus_connection_string" {
   value     = azurerm_servicebus_namespace_authorization_rule.camel_k.primary_connection_string
   sensitive = true
 }
+
+# ----- ACR outputs -----
+output "acr_login_server" {
+  value = azurerm_container_registry.main.login_server
+}
+
+output "acr_admin_username" {
+  value     = azurerm_container_registry.main.admin_username
+  sensitive = true
+}
+
+output "acr_admin_password" {
+  value     = azurerm_container_registry.main.admin_password
+  sensitive = true
+}

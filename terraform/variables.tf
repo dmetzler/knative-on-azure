@@ -74,3 +74,9 @@ variable "servicebus_namespace_name" {
   type        = string
   default     = "sbns-knative-lab"
 }
+
+variable "acr_name" {
+  description = "Azure Container Registry name (globally unique)"
+  type        = string
+  default     = "acrknativelab"
+}
