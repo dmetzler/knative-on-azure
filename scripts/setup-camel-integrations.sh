@@ -11,10 +11,14 @@ ASB_NAMESPACE=$(terraform output -raw servicebus_namespace)
 
 echo "   Namespace: ${ASB_NAMESPACE}"
 
-echo "=== Creating Service Bus Secret ==="
-kubectl create secret generic azure-servicebus-secret \
+echo "=== Creating Service Bus Properties Secret ==="
+# Camel-K mount.configs loads secret keys as property files.
+# We use a single key 'application.properties' so Camel loads it as a standard properties file.
+ASB_PROPS="asb.connection-string=${ASB_CONN_STRING}"
+
+kubectl create secret generic azure-servicebus-props \
   --namespace default \
-  --from-literal=connectionString="${ASB_CONN_STRING}" \
+  --from-literal=application.properties="${ASB_PROPS}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "=== Deploying ASB → Broker integration (inbound) ==="
