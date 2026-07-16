@@ -24,25 +24,9 @@
           otherwise:
             steps:
               - log:
-                  message: "Non-CloudEvent message received, wrapping: ${body}"
-              - setHeader:
-                  name: ce-type
-                  constant: "com.azure.servicebus.raw"
-              - setHeader:
-                  name: ce-source
-                  constant: "/azure/servicebus/knative-inbound"
-              - setHeader:
-                  name: ce-specversion
-                  constant: "1.0"
-              - setHeader:
-                  name: ce-id
-                  expression:
-                    simple: "${exchangeId}"
-              - setHeader:
-                  name: Content-Type
-                  constant: "application/json"
+                  message: "Non-CloudEvent message, sending to DLQ: ${body}"
               - to:
-                  uri: "knative:event/com.azure.servicebus.raw"
+                  uri: "azure-servicebus:{{asb.queue.dlq}}"
                   parameters:
-                    kind: Broker
-                    name: default
+                    serviceBusType: queue
+                    connectionString: "RAW({{asb.connection-string}})"

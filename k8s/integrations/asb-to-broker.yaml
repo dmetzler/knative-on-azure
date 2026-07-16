@@ -1,6 +1,6 @@
 # ASB → Broker: forwards CloudEvents from Service Bus queue directly to KNative Broker
 # If the message is already a structured CloudEvent, forward as-is.
-# If not, wrap it in a CloudEvent envelope with a default type.
+# If not, send to DLQ.
 apiVersion: camel.apache.org/v1
 kind: Integration
 metadata:
@@ -38,28 +38,12 @@ spec:
                   otherwise:
                     steps:
                       - log:
-                          message: "Non-CloudEvent message received, wrapping: ${body}"
-                      - setHeader:
-                          name: ce-type
-                          constant: "com.azure.servicebus.raw"
-                      - setHeader:
-                          name: ce-source
-                          constant: "/azure/servicebus/knative-inbound"
-                      - setHeader:
-                          name: ce-specversion
-                          constant: "1.0"
-                      - setHeader:
-                          name: ce-id
-                          expression:
-                            simple: "${exchangeId}"
-                      - setHeader:
-                          name: Content-Type
-                          constant: "application/json"
+                          message: "Non-CloudEvent message, sending to DLQ: ${body}"
                       - to:
-                          uri: "knative:event/com.azure.servicebus.raw"
+                          uri: "azure-servicebus:knative-dlq"
                           parameters:
-                            kind: Broker
-                            name: default
+                            serviceBusType: queue
+                            connectionString: "RAW({{asb.connection-string}})"
   traits:
     knative:
       configuration:

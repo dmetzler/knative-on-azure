@@ -31,6 +31,16 @@ resource "azurerm_servicebus_queue" "outbound" {
   default_message_ttl = "P1D"
 }
 
+# ----- Queue: Dead Letter Queue for invalid messages -----
+resource "azurerm_servicebus_queue" "dlq" {
+  name         = "knative-dlq"
+  namespace_id = azurerm_servicebus_namespace.main.id
+
+  max_delivery_count  = 3
+  lock_duration       = "PT30S"
+  default_message_ttl = "P7D"
+}
+
 # ----- Topic: fan-out pattern (optional, for pub/sub) -----
 resource "azurerm_servicebus_topic" "events" {
   name         = "knative-events"
