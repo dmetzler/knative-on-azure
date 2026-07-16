@@ -13,7 +13,7 @@ helm repo update camel-k
 helm upgrade --install camel-k camel-k/camel-k \
   --namespace camel-k \
   --version "${CAMEL_K_VERSION}" \
-  --set operator.global=true \
+  --set-string operator.global=true \
   --wait --timeout 5m
 
 echo ""
