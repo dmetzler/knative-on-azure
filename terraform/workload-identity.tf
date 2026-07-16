@@ -39,9 +39,19 @@ resource "azurerm_federated_identity_credential" "kafka_controller" {
 }
 
 # Role Assignment: Azure Event Hubs Data Owner on the namespace
-# This allows the identity to send, receive, and manage Event Hubs
 resource "azurerm_role_assignment" "kafka_broker_eventhubs" {
   scope                = azurerm_eventhub_namespace.main.id
   role_definition_name = "Azure Event Hubs Data Owner"
   principal_id         = azurerm_user_assigned_identity.kafka_broker.principal_id
+}
+
+# Federated credential for the token-refresh CronJob ServiceAccount
+resource "azurerm_federated_identity_credential" "kafka_token_refresh" {
+  name                = "knative-kafka-token-refresh"
+  resource_group_name = azurerm_resource_group.main.name
+  parent_id           = azurerm_user_assigned_identity.kafka_broker.id
+
+  audience = ["api://AzureADTokenExchange"]
+  issuer   = azurerm_kubernetes_cluster.main.oidc_issuer_url
+  subject  = "system:serviceaccount:knative-eventing:kafka-token-refresh"
 }

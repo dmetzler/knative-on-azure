@@ -70,6 +70,16 @@ output "kafka_broker_identity_client_id" {
   value       = azurerm_user_assigned_identity.kafka_broker.client_id
 }
 
+output "kafka_broker_identity_principal_id" {
+  description = "Principal ID (for role assignment by an admin)"
+  value       = azurerm_user_assigned_identity.kafka_broker.principal_id
+}
+
+output "eventhubs_namespace_id" {
+  description = "Event Hubs namespace resource ID (for role assignment scope)"
+  value       = azurerm_eventhub_namespace.main.id
+}
+
 output "aks_oidc_issuer_url" {
   description = "OIDC issuer URL of the AKS cluster"
   value       = azurerm_kubernetes_cluster.main.oidc_issuer_url
