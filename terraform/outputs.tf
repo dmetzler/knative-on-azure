@@ -18,6 +18,17 @@ output "eventhub_name" {
   value = azurerm_eventhub.knative.name
 }
 
+# Kafka bootstrap server
+output "kafka_bootstrap_server" {
+  value = "${azurerm_eventhub_namespace.main.name}.servicebus.windows.net:9093"
+}
+
+# SASL connection string (for Kafka SASL_SSL auth)
+output "kafka_sasl_connection_string" {
+  value     = azurerm_eventhub_namespace.main.default_primary_connection_string
+  sensitive = true
+}
+
 output "eventhub_listen_connection_string" {
   value     = azurerm_eventhub_authorization_rule.knative_listen.primary_connection_string
   sensitive = true
