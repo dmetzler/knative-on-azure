@@ -16,9 +16,12 @@ export interface CloudEventRecord {
   received_at: string;
 }
 
+type Tab = "demo" | "jupyter";
+
 export default function App() {
   const [messages, setMessages] = useState<CloudEventRecord[]>([]);
   const [connected, setConnected] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>("demo");
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -71,7 +74,31 @@ export default function App() {
     <div className="flex flex-col h-screen bg-background text-foreground">
       {/* Header */}
       <header className="flex items-center justify-between border-b border-border px-6 py-3 shrink-0">
-        <h1 className="text-lg font-semibold">KNative Messaging Demo</h1>
+        <div className="flex items-center gap-6">
+          <h1 className="text-lg font-semibold">KNative Messaging Demo</h1>
+          <nav className="flex gap-1">
+            <button
+              onClick={() => setActiveTab("demo")}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                activeTab === "demo"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              Interactive Demo
+            </button>
+            <button
+              onClick={() => setActiveTab("jupyter")}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                activeTab === "jupyter"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              Jupyter Notebook
+            </button>
+          </nav>
+        </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span
             className={`inline-block h-2 w-2 rounded-full ${connected ? "bg-green-500" : "bg-red-500"}`}
@@ -80,19 +107,31 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main content — 3 columns */}
+      {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left: Messages received */}
-        <div className="flex-[2] overflow-hidden">
-          <MessageList messages={messages} />
+        {/* Left panel — tab content */}
+        <div className="flex-1 flex overflow-hidden">
+          {activeTab === "demo" ? (
+            <>
+              {/* Messages received */}
+              <div className="flex-[2] overflow-hidden">
+                <MessageList messages={messages} />
+              </div>
+              {/* Message Sender */}
+              <div className="w-80 border-l border-border shrink-0">
+                <MessageSender onSend={handleSend} />
+              </div>
+            </>
+          ) : (
+            <iframe
+              src="/jupyter/lab"
+              className="w-full h-full border-0"
+              title="Jupyter Notebook"
+            />
+          )}
         </div>
 
-        {/* Center: Message Sender */}
-        <div className="w-80 border-l border-border shrink-0">
-          <MessageSender onSend={handleSend} />
-        </div>
-
-        {/* Right: ASB Explorer */}
+        {/* Right: ASB Explorer — always visible */}
         <div className="w-80 border-l border-border shrink-0 overflow-hidden">
           <AsbExplorer />
         </div>
