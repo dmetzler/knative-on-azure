@@ -283,7 +283,7 @@ async def send_to_asb_queue(queue_name: str, req: AsbSendRequest) -> dict[str, s
 
 
 @app.delete("/api/asb/purge/{queue_name}")
-async def purge_asb_queue(queue_name: str) -> dict[str, int]:
+async def purge_asb_queue(queue_name: str) -> dict[str, Any]:
     """Receive and discard all messages from a queue (including DLQ)."""
     client = _get_asb_client()
     from azure.servicebus import ServiceBusSubQueue
