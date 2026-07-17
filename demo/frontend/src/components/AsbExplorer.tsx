@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
 import { ScrollArea } from "./ui/scroll-area";
 
 interface QueueInfo {
