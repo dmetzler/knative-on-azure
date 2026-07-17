@@ -155,6 +155,42 @@ class MessageBus:
         """
         return self._router
 
+    # -- Local dispatch (testing / notebooks) ---------------------------------
+
+    async def dispatch(self, event: CloudEvent) -> Disposition:
+        """Dispatch a CloudEvent to local handlers (without HTTP).
+
+        Useful for testing and interactive notebooks. Returns the worst
+        disposition from all matching handlers.
+
+        Example::
+
+            result = await bus.dispatch(event)
+            assert result == Disposition.COMPLETE
+        """
+        context = MessageContext(
+            message_id=event.id,
+            delivery_count=1,
+            enqueued_time=datetime.now(timezone.utc),
+            source=event.source,
+        )
+        worst = Disposition.COMPLETE
+        matched = False
+        for reg in self._handlers:
+            if not self._matches(event, reg):
+                continue
+            matched = True
+            try:
+                result = await reg.func(event, context)
+            except Exception:
+                logger.exception("Handler %s raised", reg.func.__name__)
+                result = Disposition.RETRY
+            if _DISPOSITION_RANK[result] > _DISPOSITION_RANK[worst]:
+                worst = result
+        if not matched:
+            logger.warning("No handler matched CE type=%s source=%s", event.type, event.source)
+        return worst
+
     # -- Lifecycle -----------------------------------------------------------
 
     async def close(self) -> None:
