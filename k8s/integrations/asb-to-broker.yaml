@@ -28,6 +28,8 @@ spec:
                   when:
                     - simple: "${body} contains 'specversion'"
                       steps:
+                        - removeHeaders:
+                            pattern: "*"
                         - setHeader:
                             name: Content-Type
                             constant: "application/cloudevents+json"
