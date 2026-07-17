@@ -36,6 +36,10 @@ spec:
                         - setHeader:
                             name: CamelHttpMethod
                             constant: "POST"
+                        - log:
+                            message: "Headers: ${headers}"
+                        - log:
+                            message: "Body to broker: ${body}"
                         - to:
                             uri: "http://kafka-broker-ingress.knative-eventing.svc.cluster.local/default/default"
                   otherwise:
