@@ -2,6 +2,8 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+ENV PYTHONPATH=/app
+
 # Install messaging lib dependencies + jupyter
 COPY messaging /app/messaging
 COPY demo/backend/requirements.txt /tmp/backend-requirements.txt
