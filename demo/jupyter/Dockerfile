@@ -13,9 +13,8 @@ COPY demo/jupyter/notebooks /app/notebooks
 EXPOSE 8888
 CMD ["jupyter", "lab", \
      "--ip=0.0.0.0", "--port=8888", \
-     "--no-browser", \
-     "--NotebookApp.token=''", \
-     "--NotebookApp.password=''", \
-     "--NotebookApp.base_url=/jupyter", \
-     "--NotebookApp.allow_origin='*'", \
+     "--no-browser", "--allow-root", \
+     "--IdentityProvider.token=''", \
+     "--ServerApp.base_url=/jupyter", \
+     "--ServerApp.allow_origin=*", \
      "--notebook-dir=/app/notebooks"]
