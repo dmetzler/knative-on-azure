@@ -1,0 +1,27 @@
+## Stage 1: Download dependencies with Maven
+FROM maven:3.9-eclipse-temurin-21 AS deps
+WORKDIR /code
+COPY pom.xml .
+RUN mvn dependency:go-offline -B
+
+## Stage 2: Build native binary with Mandrel
+FROM quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-21 AS build
+USER root
+RUN microdnf install -y maven && microdnf clean all
+USER quarkus
+COPY --from=deps --chown=quarkus:quarkus /root/.m2 /home/quarkus/.m2
+COPY --chown=quarkus:quarkus pom.xml /code/pom.xml
+COPY --chown=quarkus:quarkus src /code/src
+WORKDIR /code
+RUN mvn package -Pnative -DskipTests -Dquarkus.native.native-image-xmx=4g
+
+## Stage 3: Minimal runtime image
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.6
+
+WORKDIR /work/
+COPY --from=build /code/target/*-runner /work/application
+RUN chmod 775 /work /work/application
+
+EXPOSE 8080
+USER 1001
+ENTRYPOINT ["./application", "-Dquarkus.http.host=0.0.0.0"]

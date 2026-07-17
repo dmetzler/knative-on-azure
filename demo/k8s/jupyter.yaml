@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-jupyter
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-jupyter
+  template:
+    metadata:
+      labels:
+        app: demo-jupyter
+    spec:
+      containers:
+        - name: jupyter
+          image: acrknativelab.azurecr.io/demo-jupyter:latest
+          ports:
+            - containerPort: 8888
+          env:
+            - name: BROKER_URL
+              value: "http://kafka-broker-ingress.knative-eventing.svc.cluster.local/default/default"
+            - name: AZURE_SERVICEBUS_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: azure-servicebus-demo
+                  key: connectionString
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-jupyter
+  namespace: default
+spec:
+  selector:
+    app: demo-jupyter
+  ports:
+    - port: 80
+      targetPort: 8888

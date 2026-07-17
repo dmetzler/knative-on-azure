@@ -83,6 +83,7 @@ CloudEvent (HTTP) → kafka-broker-ingress → Azure Event Hubs (SASL_SSL :9093)
 ## Constraints
 
 - **Damien runs `az` and `terraform` locally** (macOS) — not on the agent machine
+- **Always build containers with `--platform linux/amd64`** (Mac is ARM, AKS nodes are AMD64)
 - Subscription is Hyland corporate — limited RBAC/provider registration permissions
 - User: `Damien.Metzler@hyland.com`
 

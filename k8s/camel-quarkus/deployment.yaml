@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: asb-bridge
+  namespace: default
+  labels:
+    app: asb-bridge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: asb-bridge
+  template:
+    metadata:
+      labels:
+        app: asb-bridge
+    spec:
+      containers:
+        - name: asb-bridge
+          image: acrknativelab.azurecr.io/camel/asb-bridge:latest
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env:
+            - name: ASB_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: azure-servicebus-secret
+                  key: connectionString
+          livenessProbe:
+            httpGet:
+              path: /q/health/live
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /q/health/ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      imagePullSecrets:
+        - name: camel-k-registry
