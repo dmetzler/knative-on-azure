@@ -22,6 +22,8 @@ from messaging.bus import MessageBus
 from messaging.knative import KNativeTransport
 
 logging.basicConfig(level=logging.INFO)
+logging.getLogger("azure").setLevel(logging.WARNING)
+logging.getLogger("uamqp").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
