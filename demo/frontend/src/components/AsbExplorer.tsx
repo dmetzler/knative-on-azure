@@ -27,7 +27,7 @@ export function AsbExplorer() {
   const [messages, setMessages] = useState<PeekedMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sendBody, setSendBody] = useState('{"hello": "from UI"}');
+  const [sendBody, setSendBody] = useState('{"message": "Hello from ASB!", "timestamp": "2026-07-17T09:26:00Z"}');
   const [sending, setSending] = useState(false);
 
   const fetchQueues = useCallback(async () => {
