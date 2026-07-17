@@ -1,76 +1,57 @@
-"""Live event stream widget for Jupyter notebooks.
+"""Event display widget for Jupyter notebooks.
 
-Connects to the demo backend WebSocket and displays incoming CloudEvents
-in real-time within the notebook output.
+A simple ipywidgets-based component that renders CloudEvents inline.
+Used in handlers to visualize incoming events.
 
 Usage:
     from event_stream import EventStream
     stream = EventStream()
-    stream.start()
-    # Events appear below as they arrive
-    # stream.stop() to disconnect
+    stream.display()
+
+    # In a handler:
+    @bus.handler("com.example.demo")
+    async def on_event(event, ctx):
+        stream.append(event)
+        return Disposition.COMPLETE
 """
 
-import asyncio
 import json
 from IPython.display import display, HTML
 import ipywidgets as widgets
 
 
 class EventStream:
-    """Live CloudEvent stream widget for Jupyter notebooks."""
+    """Visual event stream component for Jupyter notebooks."""
 
-    def __init__(self, ws_url: str = "ws://demo-backend/ws"):
-        self.ws_url = ws_url
-        self._events: list[dict] = []
+    def __init__(self, title: str = "📡 Event Stream"):
+        self._events: list = []
         self._output = widgets.Output(layout=widgets.Layout(
             max_height="400px",
             overflow_y="auto",
             border="1px solid #333",
             padding="8px",
         ))
-        self._status = widgets.HTML(value=self._badge("disconnected"))
+        self._counter = widgets.HTML(value=self._count_badge(0))
         self._container = widgets.VBox([
-            widgets.HBox([widgets.HTML("<b>📡 Live Event Stream</b>"), self._status]),
+            widgets.HBox([widgets.HTML(f"<b>{title}</b>"), self._counter]),
             self._output
         ])
-        self._task: asyncio.Task | None = None
 
-    def start(self):
-        """Start listening for events."""
+    def display(self):
+        """Show the widget in the notebook."""
         display(self._container)
-        self._task = asyncio.ensure_future(self._listen())
 
-    def stop(self):
-        """Stop listening."""
-        if self._task:
-            self._task.cancel()
-            self._task = None
-        self._status.value = self._badge("disconnected")
-
-    async def _listen(self):
-        import websockets
-        self._status.value = self._badge("connecting")
-        try:
-            async with websockets.connect(self.ws_url) as ws:
-                self._status.value = self._badge("connected")
-                async for raw in ws:
-                    try:
-                        msg = json.loads(raw)
-                        if msg.get("type") == "event":
-                            self._on_event(msg["payload"])
-                    except json.JSONDecodeError:
-                        pass
-        except Exception as e:
-            self._status.value = self._badge(f"error: {e}")
-
-    def _on_event(self, event: dict):
+    def append(self, event):
+        """Add a CloudEvent to the stream display."""
         self._events.append(event)
+        self._counter.value = self._count_badge(len(self._events))
         with self._output:
-            time = event.get("time", "")
-            etype = event.get("type", "?")
-            source = event.get("source", "?")
-            data = json.dumps(event.get("data", {}), indent=2)
+            time = getattr(event, "time", "")
+            etype = getattr(event, "type", "?")
+            source = getattr(event, "source", "?")
+            data = getattr(event, "data", {})
+            if not isinstance(data, str):
+                data = json.dumps(data, indent=2)
             html = f"""
             <div style="margin-bottom:8px; padding:6px; background:#1a1a2e; border-radius:4px; font-family:monospace; font-size:12px;">
                 <span style="color:#4ade80;">●</span>
@@ -82,12 +63,12 @@ class EventStream:
             """
             display(HTML(html))
 
+    def clear(self):
+        """Clear all displayed events."""
+        self._events.clear()
+        self._output.clear_output()
+        self._counter.value = self._count_badge(0)
+
     @staticmethod
-    def _badge(status: str) -> str:
-        colors = {
-            "connected": "#4ade80",
-            "connecting": "#facc15",
-            "disconnected": "#ef4444",
-        }
-        color = colors.get(status, "#ef4444")
-        return f'<span style="margin-left:8px; color:{color}; font-size:12px;">⬤ {status}</span>'
+    def _count_badge(count: int) -> str:
+        return f'<span style="margin-left:8px; color:#94a3b8; font-size:12px;">{count} events</span>'
