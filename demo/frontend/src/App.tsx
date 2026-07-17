@@ -70,6 +70,11 @@ export default function App() {
     []
   );
 
+  const handleClear = useCallback(async () => {
+    await fetch("/api/messages", { method: "DELETE" });
+    setMessages([]);
+  }, []);
+
   return (
     <div className="flex flex-col h-screen bg-background text-foreground">
       {/* Header */}
@@ -115,7 +120,7 @@ export default function App() {
           <div className={`flex-1 flex overflow-hidden ${activeTab !== "demo" ? "hidden" : ""}`}>
             {/* Messages received */}
             <div className="flex-[2] overflow-hidden">
-              <MessageList messages={messages} />
+              <MessageList messages={messages} onClear={handleClear} />
             </div>
             {/* Message Sender */}
             <div className="w-80 border-l border-border shrink-0">

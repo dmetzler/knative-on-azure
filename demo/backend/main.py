@@ -163,6 +163,13 @@ async def get_messages() -> list[dict[str, Any]]:
     return list(_message_buffer)
 
 
+@app.delete("/api/messages")
+async def clear_messages() -> dict[str, str]:
+    """Clear all received events."""
+    _message_buffer.clear()
+    return {"status": "cleared"}
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket) -> None:
     await ws.accept()

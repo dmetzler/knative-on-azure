@@ -1,14 +1,16 @@
 import { ScrollArea } from "./ui/scroll-area";
 import { Card, CardContent } from "./ui/card";
 import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
 import type { CloudEventRecord } from "../App";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface Props {
   messages: CloudEventRecord[];
+  onClear?: () => void;
 }
 
-export function MessageList({ messages }: Props) {
+export function MessageList({ messages, onClear }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -24,7 +26,14 @@ export function MessageList({ messages }: Props) {
   }
 
   return (
-    <ScrollArea className="h-full p-4 space-y-3">
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border shrink-0">
+        <span className="text-sm text-muted-foreground">{messages.length} events</span>
+        {onClear && messages.length > 0 && (
+          <Button size="sm" variant="outline" onClick={onClear}>Clear</Button>
+        )}
+      </div>
+      <ScrollArea className="flex-1 p-4 space-y-3">
       {messages.map((msg) => (
         <Card key={msg.id} className="mb-3">
           <CardContent className="p-4">
@@ -49,5 +58,6 @@ export function MessageList({ messages }: Props) {
       ))}
       <div ref={bottomRef} />
     </ScrollArea>
+    </div>
   );
 }
