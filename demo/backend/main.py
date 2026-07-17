@@ -246,23 +246,24 @@ async def peek_asb_queue(queue_name: str, max_count: int = 10) -> list[dict[str,
 
 @app.post("/api/asb/send/{queue_name}")
 async def send_to_asb_queue(queue_name: str, req: AsbSendRequest) -> dict[str, str]:
-    """Send a CloudEvent-formatted message to an Azure Service Bus queue."""
+    """Send a CloudEvent (structured mode) to an Azure Service Bus queue."""
     import uuid as _uuid
     from azure.servicebus import ServiceBusMessage
 
-    # Wrap in CloudEvent so Camel-K asb-to-broker accepts it
+    # Camel-K route checks body contains 'specversion' (structured CE mode)
     event_id = str(_uuid.uuid4())
+    ce_body = json.dumps({
+        "specversion": "1.0",
+        "type": "com.demo.asb",
+        "source": "/demo/asb-ui",
+        "id": event_id,
+        "time": datetime.utcnow().isoformat() + "Z",
+        "datacontenttype": "application/json",
+        "data": json.loads(req.body) if req.content_type == "application/json" else req.body,
+    })
     ce_message = ServiceBusMessage(
-        body=req.body,
-        content_type=req.content_type,
-        application_properties={
-            "ce-specversion": "1.0",
-            "ce-type": "com.demo.asb",
-            "ce-source": "/demo/asb-ui",
-            "ce-id": event_id,
-            "ce-time": datetime.utcnow().isoformat() + "Z",
-            "ce-datacontenttype": req.content_type,
-        },
+        body=ce_body,
+        content_type="application/cloudevents+json",
     )
     client = _get_asb_client()
     async with client:
