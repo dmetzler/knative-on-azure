@@ -5,8 +5,4 @@ metadata:
 spec:
   broker: default
   subscriber:
-    ref:
-      apiVersion: v1
-      kind: Service
-      name: demo-backend
-    uri: /events/
+    uri: http://demo-backend.default.svc.cluster.local:8000/events/
