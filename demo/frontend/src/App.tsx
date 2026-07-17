@@ -20,7 +20,6 @@ export default function App() {
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
-  // Fetch existing messages on mount
   useEffect(() => {
     fetch("/api/messages")
       .then((r) => r.json())
@@ -28,7 +27,6 @@ export default function App() {
       .catch(() => {});
   }, []);
 
-  // WebSocket connection
   useEffect(() => {
     const proto = window.location.protocol === "https:" ? "wss" : "ws";
     const ws = new WebSocket(`${proto}://${window.location.host}/ws`);
@@ -69,9 +67,9 @@ export default function App() {
   );
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen bg-background text-foreground">
       {/* Header */}
-      <header className="flex items-center justify-between border-b px-6 py-3">
+      <header className="flex items-center justify-between border-b border-border px-6 py-3 shrink-0">
         <h1 className="text-lg font-semibold">KNative Messaging Demo</h1>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span
@@ -81,26 +79,16 @@ export default function App() {
         </div>
       </header>
 
-      {/* Split layout */}
+      {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left pane — JupyterLite */}
-        <div className="w-1/2 border-r">
-          <iframe
-            src="/jupyterlite/"
-            title="JupyterLite"
-            className="w-full h-full border-0"
-            sandbox="allow-scripts allow-same-origin allow-popups"
-          />
+        {/* Messages */}
+        <div className="flex-1 overflow-hidden">
+          <MessageList messages={messages} />
         </div>
 
-        {/* Right pane — ServiceBus-style UI */}
-        <div className="flex flex-col w-1/2">
-          <div className="flex-1 overflow-hidden">
-            <MessageList messages={messages} />
-          </div>
-          <div className="border-t">
-            <MessageSender onSend={handleSend} />
-          </div>
+        {/* Sender sidebar */}
+        <div className="w-96 border-l border-border shrink-0">
+          <MessageSender onSend={handleSend} />
         </div>
       </div>
     </div>
