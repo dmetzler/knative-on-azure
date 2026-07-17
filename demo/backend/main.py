@@ -145,10 +145,13 @@ async def send_event(req: SendRequest) -> dict[str, str]:
     )
 
     if MOCK_MODE:
-        # Loop back directly — no real broker.
         await _handle_event(event)
     else:
-        await bus.publish(event)
+        try:
+            await bus.publish(event)
+        except Exception as e:
+            logger.warning("Publish to broker failed (%s), looping back locally", e)
+        await _handle_event(event)
 
     return {"status": "sent", "id": event.id}
 
