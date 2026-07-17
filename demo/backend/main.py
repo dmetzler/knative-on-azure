@@ -190,21 +190,21 @@ def _get_asb_client():
 
 
 def _get_asb_admin_client():
-    """Lazy import and create ASB admin client."""
+    """Lazy import and create ASB admin client (sync)."""
     if not ASB_CONNECTION_STRING:
         raise HTTPException(status_code=503, detail="Azure Service Bus not configured")
-    from azure.servicebus.management.aio import ServiceBusAdministrationClient
+    from azure.servicebus.management import ServiceBusAdministrationClient
     return ServiceBusAdministrationClient.from_connection_string(ASB_CONNECTION_STRING)
 
 
-@app.get("/api/asb/queues")
-async def list_asb_queues() -> list[dict[str, Any]]:
-    """List all queues with message counts."""
-    admin = _get_asb_admin_client()
+def _list_queues_sync() -> list[dict[str, Any]]:
+    """Sync helper to list queues (runs in thread)."""
+    from azure.servicebus.management import ServiceBusAdministrationClient
+    admin = ServiceBusAdministrationClient.from_connection_string(ASB_CONNECTION_STRING)
     queues = []
-    async with admin:
-        async for props in admin.list_queues():
-            runtime = await admin.get_queue_runtime_properties(props.name)
+    with admin:
+        for props in admin.list_queues():
+            runtime = admin.get_queue_runtime_properties(props.name)
             queues.append({
                 "name": props.name,
                 "active_message_count": runtime.active_message_count,
@@ -213,6 +213,14 @@ async def list_asb_queues() -> list[dict[str, Any]]:
                 "total_message_count": runtime.total_message_count,
             })
     return queues
+
+
+@app.get("/api/asb/queues")
+async def list_asb_queues() -> list[dict[str, Any]]:
+    """List all queues with message counts."""
+    if not ASB_CONNECTION_STRING:
+        raise HTTPException(status_code=503, detail="Azure Service Bus not configured")
+    return await asyncio.to_thread(_list_queues_sync)
 
 
 @app.get("/api/asb/peek/{queue_name}")
