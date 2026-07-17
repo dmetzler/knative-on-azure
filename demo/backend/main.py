@@ -246,15 +246,30 @@ async def peek_asb_queue(queue_name: str, max_count: int = 10) -> list[dict[str,
 
 @app.post("/api/asb/send/{queue_name}")
 async def send_to_asb_queue(queue_name: str, req: AsbSendRequest) -> dict[str, str]:
-    """Send a message to an Azure Service Bus queue."""
+    """Send a CloudEvent-formatted message to an Azure Service Bus queue."""
+    import uuid as _uuid
     from azure.servicebus import ServiceBusMessage
+
+    # Wrap in CloudEvent so Camel-K asb-to-broker accepts it
+    event_id = str(_uuid.uuid4())
+    ce_message = ServiceBusMessage(
+        body=req.body,
+        content_type=req.content_type,
+        application_properties={
+            "ce-specversion": "1.0",
+            "ce-type": "com.demo.asb",
+            "ce-source": "/demo/asb-ui",
+            "ce-id": event_id,
+            "ce-time": datetime.utcnow().isoformat() + "Z",
+            "ce-datacontenttype": req.content_type,
+        },
+    )
     client = _get_asb_client()
     async with client:
         sender = client.get_queue_sender(queue_name)
         async with sender:
-            message = ServiceBusMessage(body=req.body, content_type=req.content_type)
-            await sender.send_messages(message)
-    return {"status": "sent", "queue": queue_name}
+            await sender.send_messages(ce_message)
+    return {"status": "sent", "queue": queue_name, "id": event_id}
 
 
 # ---------------------------------------------------------------------------
