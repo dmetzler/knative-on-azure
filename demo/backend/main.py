@@ -18,12 +18,6 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-# Adjust import path — works both when `messaging` is installed and when running
-# from the repo root with PYTHONPATH including the project dir.
-import sys, pathlib
-
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
-
 from messaging.models import CloudEvent, Disposition, MessageContext
 from messaging.knative.publisher import KNativeEventingPublisher
 
