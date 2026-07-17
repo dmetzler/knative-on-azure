@@ -3,7 +3,7 @@ import { Card, CardContent } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import type { CloudEventRecord } from "../App";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 interface Props {
   messages: CloudEventRecord[];
