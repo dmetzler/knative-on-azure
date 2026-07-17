@@ -111,24 +111,26 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left panel — tab content */}
         <div className="flex-1 flex overflow-hidden">
-          {activeTab === "demo" ? (
-            <>
-              {/* Messages received */}
-              <div className="flex-[2] overflow-hidden">
-                <MessageList messages={messages} />
-              </div>
-              {/* Message Sender */}
-              <div className="w-80 border-l border-border shrink-0">
-                <MessageSender onSend={handleSend} />
-              </div>
-            </>
-          ) : (
+          {/* Demo tab */}
+          <div className={`flex-1 flex overflow-hidden ${activeTab !== "demo" ? "hidden" : ""}`}>
+            {/* Messages received */}
+            <div className="flex-[2] overflow-hidden">
+              <MessageList messages={messages} />
+            </div>
+            {/* Message Sender */}
+            <div className="w-80 border-l border-border shrink-0">
+              <MessageSender onSend={handleSend} />
+            </div>
+          </div>
+
+          {/* Jupyter tab */}
+          <div className={`flex-1 overflow-hidden ${activeTab !== "jupyter" ? "hidden" : ""}`}>
             <iframe
               src="/jupyter/lab"
               className="w-full h-full border-0"
               title="Jupyter Notebook"
             />
-          )}
+          </div>
         </div>
 
         {/* Right: ASB Explorer — always visible */}
