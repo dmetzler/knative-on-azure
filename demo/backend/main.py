@@ -275,6 +275,20 @@ async def send_to_asb_queue(queue_name: str, req: AsbSendRequest) -> dict[str, s
     return {"status": "sent", "queue": queue_name, "id": event_id}
 
 
+@app.delete("/api/asb/purge/{queue_name}")
+async def purge_asb_queue(queue_name: str) -> dict[str, int]:
+    """Receive and discard all messages from a queue."""
+    client = _get_asb_client()
+    count = 0
+    async with client:
+        receiver = client.get_queue_receiver(queue_name, max_wait_time=5)
+        async with receiver:
+            async for msg in receiver:
+                await receiver.complete_message(msg)
+                count += 1
+    return {"purged": count, "queue": queue_name}
+
+
 # ---------------------------------------------------------------------------
 # Health
 # ---------------------------------------------------------------------------

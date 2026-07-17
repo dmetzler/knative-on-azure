@@ -29,6 +29,7 @@ export function AsbExplorer() {
   const [error, setError] = useState<string | null>(null);
   const [sendBody, setSendBody] = useState('{"message": "Hello from ASB!", "timestamp": "2026-07-17T09:26:00Z"}');
   const [sending, setSending] = useState(false);
+  const [purging, setPurging] = useState(false);
 
   const fetchQueues = useCallback(async () => {
     try {
@@ -84,6 +85,18 @@ export function AsbExplorer() {
       await peekQueue(selectedQueue);
     } finally {
       setSending(false);
+    }
+  };
+
+  const handlePurge = async () => {
+    if (!selectedQueue) return;
+    setPurging(true);
+    try {
+      await fetch(`/api/asb/purge/${encodeURIComponent(selectedQueue)}`, { method: "DELETE" });
+      await peekQueue(selectedQueue);
+      await fetchQueues();
+    } finally {
+      setPurging(false);
     }
   };
 
@@ -173,9 +186,14 @@ export function AsbExplorer() {
             rows={2}
             className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 font-mono"
           />
-          <Button size="sm" onClick={handleSend} disabled={sending} className="w-full">
-            {sending ? "Sending…" : "Send to Queue"}
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleSend} disabled={sending} className="flex-1">
+              {sending ? "Sending…" : "Send to Queue"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={handlePurge} disabled={purging}>
+              {purging ? "Purging…" : "Purge"}
+            </Button>
+          </div>
         </div>
       )}
     </div>
