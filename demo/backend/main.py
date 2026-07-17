@@ -195,6 +195,7 @@ def _get_asb_client():
     if not ASB_CONNECTION_STRING:
         raise HTTPException(status_code=503, detail="Azure Service Bus not configured")
     from azure.servicebus.aio import ServiceBusClient
+from azure.servicebus import ServiceBusSubQueue
     return ServiceBusClient.from_connection_string(ASB_CONNECTION_STRING)
 
 
@@ -284,16 +285,26 @@ async def send_to_asb_queue(queue_name: str, req: AsbSendRequest) -> dict[str, s
 
 @app.delete("/api/asb/purge/{queue_name}")
 async def purge_asb_queue(queue_name: str) -> dict[str, int]:
-    """Receive and discard all messages from a queue."""
+    """Receive and discard all messages from a queue (including DLQ)."""
     client = _get_asb_client()
     count = 0
+    dlq_count = 0
     async with client:
+        # Purge main queue
         receiver = client.get_queue_receiver(queue_name, max_wait_time=5)
         async with receiver:
             async for msg in receiver:
                 await receiver.complete_message(msg)
                 count += 1
-    return {"purged": count, "queue": queue_name}
+        # Purge dead-letter queue
+        dlq_receiver = client.get_queue_receiver(
+            queue_name, sub_queue=ServiceBusSubQueue.DEAD_LETTER, max_wait_time=5
+        )
+        async with dlq_receiver:
+            async for msg in dlq_receiver:
+                await dlq_receiver.complete_message(msg)
+                dlq_count += 1
+    return {"purged": count, "dlq_purged": dlq_count, "queue": queue_name}
 
 
 # ---------------------------------------------------------------------------
