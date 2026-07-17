@@ -101,7 +101,7 @@ export function AsbExplorer() {
         <h2 className="text-sm font-semibold">Azure Service Bus</h2>
       </div>
 
-      <ScrollArea className="flex-1 p-3">
+      <ScrollArea className="flex-1 p-3 min-h-0">
         {/* Queue list */}
         <div className="space-y-2 mb-4">
           {queues.map((q) => (
@@ -142,7 +142,7 @@ export function AsbExplorer() {
               <p className="text-xs text-muted-foreground text-center py-2">No messages to peek</p>
             )}
 
-            <div className="space-y-2 mb-4">
+            <div className="space-y-2">
               {messages.map((msg) => (
                 <Card key={`${msg.sequence_number}-${msg.message_id}`}>
                   <CardContent className="p-2">
@@ -159,23 +159,25 @@ export function AsbExplorer() {
                 </Card>
               ))}
             </div>
-
-            {/* Send to queue */}
-            <div className="border-t border-border pt-3 space-y-2">
-              <label className="text-xs text-muted-foreground block">Send to {selectedQueue}</label>
-              <textarea
-                value={sendBody}
-                onChange={(e) => setSendBody(e.target.value)}
-                rows={2}
-                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 font-mono"
-              />
-              <Button size="sm" onClick={handleSend} disabled={sending} className="w-full">
-                {sending ? "Sending…" : "Send to Queue"}
-              </Button>
-            </div>
           </>
         )}
       </ScrollArea>
+
+      {/* Send to queue — fixed at bottom */}
+      {selectedQueue && (
+        <div className="px-3 py-3 border-t border-border shrink-0 space-y-2">
+          <label className="text-xs text-muted-foreground block">Send to {selectedQueue}</label>
+          <textarea
+            value={sendBody}
+            onChange={(e) => setSendBody(e.target.value)}
+            rows={2}
+            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 font-mono"
+          />
+          <Button size="sm" onClick={handleSend} disabled={sending} className="w-full">
+            {sending ? "Sending…" : "Send to Queue"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
