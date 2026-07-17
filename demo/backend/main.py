@@ -19,7 +19,7 @@ from pydantic import BaseModel
 
 from messaging.models import CloudEvent, Disposition, MessageContext
 from messaging.bus import MessageBus
-from messaging.knative.transport import KNativeTransport
+from messaging.knative import KNativeTransport
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
