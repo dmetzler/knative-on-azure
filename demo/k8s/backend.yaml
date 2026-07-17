@@ -24,6 +24,11 @@ spec:
               value: "false"
             - name: BROKER_URL
               value: "http://broker-ingress.knative-eventing.svc.cluster.local/default/default"
+            - name: AZURE_SERVICEBUS_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: azure-servicebus-demo
+                  key: connectionString
           readinessProbe:
             httpGet:
               path: /healthz

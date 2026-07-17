@@ -9,4 +9,4 @@ spec:
       apiVersion: v1
       kind: Service
       name: demo-backend
-    uri: /
+    uri: /events/

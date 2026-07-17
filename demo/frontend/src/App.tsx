@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { MessageList } from "./components/MessageList";
 import { MessageSender } from "./components/MessageSender";
+import { AsbExplorer } from "./components/AsbExplorer";
 
 export interface CloudEventRecord {
   id: string;
@@ -79,16 +80,21 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main content */}
+      {/* Main content — 3 columns */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Messages */}
-        <div className="flex-1 overflow-hidden">
+        {/* Left: Messages received */}
+        <div className="flex-[2] overflow-hidden">
           <MessageList messages={messages} />
         </div>
 
-        {/* Sender sidebar */}
-        <div className="w-96 border-l border-border shrink-0">
+        {/* Center: Message Sender */}
+        <div className="w-80 border-l border-border shrink-0">
           <MessageSender onSend={handleSend} />
+        </div>
+
+        {/* Right: ASB Explorer */}
+        <div className="w-80 border-l border-border shrink-0 overflow-hidden">
+          <AsbExplorer />
         </div>
       </div>
     </div>

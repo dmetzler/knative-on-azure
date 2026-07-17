@@ -1,7 +1,5 @@
-"""Demo backend — FastAPI app with WebSocket live stream and REST send endpoint.
-
-Runs standalone for local dev: publishes events to an in-memory bus (no real
-KNative required) and broadcasts them to connected WebSocket clients.
+"""Demo backend — FastAPI app with WebSocket live stream, REST send endpoint,
+KNative eventing integration via MessageBus, and Azure Service Bus peek/send.
 """
 
 from __future__ import annotations
@@ -9,20 +7,30 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import uuid
 from collections import deque
 from datetime import datetime
 from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from messaging.models import CloudEvent, Disposition, MessageContext
-from messaging.knative.publisher import KNativeEventingPublisher
+from messaging.bus import MessageBus
+from messaging.knative.transport import KNativeTransport
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+
+MOCK_MODE = os.getenv("MOCK_MODE", "false").lower() == "true"
+BROKER_URL = os.getenv("BROKER_URL", "http://broker-ingress.knative-eventing.svc.cluster.local/default/default")
+ASB_CONNECTION_STRING = os.getenv("AZURE_SERVICEBUS_CONNECTION_STRING", "")
 
 # ---------------------------------------------------------------------------
 # App
@@ -38,17 +46,32 @@ app.add_middleware(
 )
 
 # ---------------------------------------------------------------------------
+# MessageBus
+# ---------------------------------------------------------------------------
+
+bus = MessageBus()
+
+if not MOCK_MODE:
+    bus.configure(KNativeTransport(broker_url=BROKER_URL))
+
+
+@bus.handler()
+async def on_event(event: CloudEvent, ctx: MessageContext) -> Disposition:
+    """Catch-all handler: receives ALL events from KNative Trigger."""
+    await _handle_event(event)
+    return Disposition.COMPLETE
+
+
+# Mount bus router for receiving events from KNative Trigger
+app.include_router(bus.router, prefix="/events")
+
+# ---------------------------------------------------------------------------
 # State
 # ---------------------------------------------------------------------------
 
 MAX_BUFFER = 200
 _message_buffer: deque[dict[str, Any]] = deque(maxlen=MAX_BUFFER)
 _ws_clients: set[WebSocket] = set()
-
-# In local-dev / mock mode we don't actually POST to a broker — we just loop
-# the event back into the subscriber pipeline directly.
-_mock_mode = True
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -91,7 +114,7 @@ async def _handle_event(event: CloudEvent) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Pydantic request model
+# Pydantic request models
 # ---------------------------------------------------------------------------
 
 
@@ -102,8 +125,13 @@ class SendRequest(BaseModel):
     subject: str | None = None
 
 
+class AsbSendRequest(BaseModel):
+    body: str
+    content_type: str = "application/json"
+
+
 # ---------------------------------------------------------------------------
-# Routes
+# Routes — Core messaging
 # ---------------------------------------------------------------------------
 
 
@@ -116,15 +144,11 @@ async def send_event(req: SendRequest) -> dict[str, str]:
         subject=req.subject,
     )
 
-    if _mock_mode:
+    if MOCK_MODE:
         # Loop back directly — no real broker.
         await _handle_event(event)
     else:
-        publisher = KNativeEventingPublisher()
-        try:
-            await publisher.publish(topic=req.subject or "demo", event=event)
-        finally:
-            await publisher.close()
+        await bus.publish(event)
 
     return {"status": "sent", "id": event.id}
 
@@ -141,13 +165,90 @@ async def websocket_endpoint(ws: WebSocket) -> None:
     logger.info("WebSocket client connected (%d total)", len(_ws_clients))
     try:
         while True:
-            # Keep connection alive; client can send pings or ignore.
             await ws.receive_text()
     except WebSocketDisconnect:
         pass
     finally:
         _ws_clients.discard(ws)
         logger.info("WebSocket client disconnected (%d total)", len(_ws_clients))
+
+
+# ---------------------------------------------------------------------------
+# Routes — Azure Service Bus
+# ---------------------------------------------------------------------------
+
+
+def _get_asb_client():
+    """Lazy import and create ASB client."""
+    if not ASB_CONNECTION_STRING:
+        raise HTTPException(status_code=503, detail="Azure Service Bus not configured")
+    from azure.servicebus.aio import ServiceBusClient
+    return ServiceBusClient.from_connection_string(ASB_CONNECTION_STRING)
+
+
+def _get_asb_admin_client():
+    """Lazy import and create ASB admin client."""
+    if not ASB_CONNECTION_STRING:
+        raise HTTPException(status_code=503, detail="Azure Service Bus not configured")
+    from azure.servicebus.management.aio import ServiceBusAdministrationClient
+    return ServiceBusAdministrationClient.from_connection_string(ASB_CONNECTION_STRING)
+
+
+@app.get("/api/asb/queues")
+async def list_asb_queues() -> list[dict[str, Any]]:
+    """List all queues with message counts."""
+    admin = _get_asb_admin_client()
+    queues = []
+    async with admin:
+        async for props in admin.list_queues():
+            runtime = await admin.get_queue_runtime_properties(props.name)
+            queues.append({
+                "name": props.name,
+                "active_message_count": runtime.active_message_count,
+                "dead_letter_message_count": runtime.dead_letter_message_count,
+                "scheduled_message_count": runtime.scheduled_message_count,
+                "total_message_count": runtime.total_message_count,
+            })
+    return queues
+
+
+@app.get("/api/asb/peek/{queue_name}")
+async def peek_asb_queue(queue_name: str, max_count: int = 10) -> list[dict[str, Any]]:
+    """Peek messages from a queue (non-destructive)."""
+    client = _get_asb_client()
+    messages = []
+    async with client:
+        receiver = client.get_queue_receiver(queue_name)
+        async with receiver:
+            peeked = await receiver.peek_messages(max_message_count=max_count)
+            for msg in peeked:
+                messages.append({
+                    "message_id": msg.message_id,
+                    "body": str(msg),
+                    "content_type": msg.content_type,
+                    "enqueued_time": msg.enqueued_time_utc.isoformat() if msg.enqueued_time_utc else None,
+                    "sequence_number": msg.sequence_number,
+                    "subject": msg.subject,
+                })
+    return messages
+
+
+@app.post("/api/asb/send/{queue_name}")
+async def send_to_asb_queue(queue_name: str, req: AsbSendRequest) -> dict[str, str]:
+    """Send a message to an Azure Service Bus queue."""
+    from azure.servicebus import ServiceBusMessage
+    client = _get_asb_client()
+    async with client:
+        sender = client.get_queue_sender(queue_name)
+        async with sender:
+            message = ServiceBusMessage(body=req.body, content_type=req.content_type)
+            await sender.send_messages(message)
+    return {"status": "sent", "queue": queue_name}
+
+
+# ---------------------------------------------------------------------------
+# Health
+# ---------------------------------------------------------------------------
 
 
 @app.get("/healthz")
