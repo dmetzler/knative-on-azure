@@ -4,12 +4,12 @@ WORKDIR /app
 
 ENV PYTHONPATH=/app
 
-# Install messaging lib dependencies + jupyter
-COPY messaging /app/messaging
+# Install dependencies first (cached layer)
 COPY demo/backend/requirements.txt /tmp/backend-requirements.txt
 RUN pip install --no-cache-dir -r /tmp/backend-requirements.txt jupyterlab ipywidgets websockets
 
-# Pre-load notebooks
+# Then copy source (invalidates less often)
+COPY messaging /app/messaging
 COPY demo/jupyter/notebooks /app/notebooks
 
 EXPOSE 8888
