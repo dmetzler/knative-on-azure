@@ -53,12 +53,12 @@ class EventStream:
             if not isinstance(data, str):
                 data = json.dumps(data, indent=2)
             html = f"""
-            <div style="margin-bottom:8px; padding:6px; background:#1a1a2e; border-radius:4px; font-family:monospace; font-size:12px;">
-                <span style="color:#4ade80;">●</span>
-                <span style="color:#94a3b8;">{time}</span>
-                <span style="color:#60a5fa; font-weight:bold;">{etype}</span>
-                <span style="color:#94a3b8;">from {source}</span>
-                <pre style="color:#e2e8f0; margin:4px 0 0 16px; white-space:pre-wrap;">{data}</pre>
+            <div style="margin-bottom:8px; padding:6px; background:var(--jp-layout-color2, #f0f0f0); border:1px solid var(--jp-border-color1, #ddd); border-radius:4px; font-family:monospace; font-size:12px;">
+                <span style="color:#22c55e;">●</span>
+                <span style="color:var(--jp-content-font-color2, #666);">{time}</span>
+                <span style="color:var(--jp-brand-color1, #2563eb); font-weight:bold;">{etype}</span>
+                <span style="color:var(--jp-content-font-color2, #666);">from {source}</span>
+                <pre style="color:var(--jp-content-font-color1, #333); margin:4px 0 0 16px; white-space:pre-wrap;">{data}</pre>
             </div>
             """
             display(HTML(html))
