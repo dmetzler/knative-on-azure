@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 MOCK_MODE = os.getenv("MOCK_MODE", "false").lower() == "true"
-BROKER_URL = os.getenv("BROKER_URL", "http://broker-ingress.knative-eventing.svc.cluster.local/default/default")
+BROKER_URL = os.getenv("BROKER_URL", "http://kafka-broker-ingress.knative-eventing.svc.cluster.local/default/default")
 ASB_CONNECTION_STRING = os.getenv("AZURE_SERVICEBUS_CONNECTION_STRING", "")
 
 # ---------------------------------------------------------------------------
