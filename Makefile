@@ -1,47 +1,71 @@
-IMAGE_REGISTRY ?= acrknativelab.azurecr.io
-IMAGE_GROUP    ?= camel
-IMAGE_NAME     ?= asb-bridge
-IMAGE_TAG      ?= latest
-IMAGE          := $(IMAGE_REGISTRY)/$(IMAGE_GROUP)/$(IMAGE_NAME):$(IMAGE_TAG)
+ACR          ?= acrknativelab.azurecr.io
+PLATFORM     ?= linux/amd64
 
-.PHONY: build package push deploy clean
+# -- Demo images -------------------------------------------------------
+BACKEND_IMG  := $(ACR)/demo-backend:latest
+FRONTEND_IMG := $(ACR)/demo-frontend:latest
+JUPYTER_IMG  := $(ACR)/demo-jupyter:latest
 
-## Build the Quarkus app (fast JVM mode)
-build:
+# -- Camel-Quarkus (legacy) --------------------------------------------
+CAMEL_IMG    := $(ACR)/camel/asb-bridge:latest
+
+.PHONY: help acr-login build-frontend build-backend build-jupyter build-all \
+        push-all deploy-demo deploy-integrations deploy-all clean
+
+help: ## Show available targets
+	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+# -- ACR ----------------------------------------------------------------
+acr-login: ## Login to Azure Container Registry
+	az acr login --name $(shell echo $(ACR) | cut -d. -f1)
+
+# -- Build --------------------------------------------------------------
+build-frontend: ## Build frontend (npm build + Docker image)
+	cd demo/frontend && npm run build
+	docker build --platform $(PLATFORM) -f demo/frontend/Dockerfile -t $(FRONTEND_IMG) .
+
+build-backend: ## Build backend Docker image
+	docker build --platform $(PLATFORM) -f demo/backend/Dockerfile -t $(BACKEND_IMG) .
+
+build-jupyter: ## Build Jupyter Docker image
+	docker build --platform $(PLATFORM) -f demo/jupyter/Dockerfile -t $(JUPYTER_IMG) .
+
+build-all: build-frontend build-backend build-jupyter ## Build all demo images
+
+# -- Push ---------------------------------------------------------------
+push-all: ## Push all demo images to ACR
+	docker push $(BACKEND_IMG)
+	docker push $(FRONTEND_IMG)
+	docker push $(JUPYTER_IMG)
+
+# -- Deploy -------------------------------------------------------------
+deploy-demo: ## Deploy demo app (backend + frontend + jupyter + triggers)
+	kubectl apply -f demo/k8s/asb-secret.yaml
+	kubectl apply -f demo/k8s/backend.yaml
+	kubectl apply -f demo/k8s/frontend.yaml
+	kubectl apply -f demo/k8s/jupyter.yaml
+	kubectl apply -f demo/k8s/trigger.yaml
+
+deploy-integrations: ## Deploy Camel-K integrations (ASB ↔ Broker bridge)
+	kubectl apply -f k8s/integrations/asb-to-broker.yaml
+	kubectl apply -f k8s/integrations/broker-to-asb.yaml
+
+deploy-all: deploy-demo deploy-integrations ## Deploy everything
+
+# -- Convenience --------------------------------------------------------
+redeploy-demo: ## Rollout restart all demo deployments
+	kubectl rollout restart deployment/demo-backend deployment/demo-frontend deployment/demo-jupyter
+
+all: acr-login build-all push-all deploy-all ## Full pipeline: login → build → push → deploy
+
+# -- Camel-Quarkus (legacy) --------------------------------------------
+build-camel: ## Build Camel-Quarkus app
 	cd camel-quarkus && mvn package -DskipTests
 
-## Build native binary (cross-compile for linux/amd64 via container build)
-native:
-	cd camel-quarkus && mvn package -Pnative -DskipTests \
-		-Dquarkus.native.container-build=true \
-		-Dquarkus.native.builder-image.pull=always \
-		-Dquarkus.native.container-runtime-options=--platform=linux/amd64
+package-camel: build-camel ## Build Camel-Quarkus Docker image
+	docker build --platform $(PLATFORM) -f camel-quarkus/src/main/docker/Dockerfile.jvm -t $(CAMEL_IMG) camel-quarkus
 
-## Build + container image (JVM)
-package: build
-	docker build --platform linux/amd64 -f camel-quarkus/src/main/docker/Dockerfile.jvm \
-		-t $(IMAGE) camel-quarkus
-
-## Build + container image (native — multi-stage, no local GraalVM needed)
-package-native:
-	docker build --platform linux/amd64 -f camel-quarkus/src/main/docker/Dockerfile.native \
-		-t $(IMAGE) camel-quarkus
-
-## Push image to ACR
-push: package
-	docker push $(IMAGE)
-
-## Deploy to K8s (standard Deployment)
-deploy:
-	kubectl apply -f k8s/camel-quarkus/deployment.yaml
-
-## Full pipeline: build → push → deploy
-all: push deploy
-
-## Login to ACR
-acr-login:
-	az acr login --name $(shell echo $(IMAGE_REGISTRY) | cut -d. -f1)
-
-## Clean build artifacts
-clean:
-	cd camel-quarkus && mvn clean
+# -- Clean --------------------------------------------------------------
+clean: ## Clean build artifacts
+	cd camel-quarkus && mvn clean || true
+	rm -rf demo/frontend/dist

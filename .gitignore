@@ -4,7 +4,7 @@ terraform/*.tfstate
 terraform/*.tfstate.*
 terraform/*.tfvars
 terraform/.terraform.lock.hcl
-
+target
 # OS
 .DS_Store
 *.swp

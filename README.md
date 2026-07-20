@@ -1,10 +1,14 @@
-# KNative on Azure — Event Hubs Kafka Broker POC
+# KNative on Azure — Event-Driven Messaging with Kafka Broker & Azure Service Bus
 
-> **Proof of Concept:** Run a KNative Eventing [Kafka Broker](https://knative.dev/docs/eventing/brokers/broker-types/kafka-broker/) on AKS, backed by [Azure Event Hubs](https://learn.microsoft.com/en-us/azure/event-hubs/azure-event-hubs-kafka-overview) in Kafka compatibility mode.
+> **Lab / Demo:** Run KNative Eventing on AKS with a Kafka Broker backed by Azure Event Hubs, bridged to Azure Service Bus via Camel-K. Includes a full interactive demo app with a Python messaging library.
 
 ## Goal
 
-Demonstrate that Azure Event Hubs can serve as a **drop-in Kafka backend** for KNative Eventing's Kafka Broker — no Kafka cluster to manage, no adapters needed. CloudEvents flow through the standard KNative Broker/Trigger model, with Event Hubs handling persistence and delivery under the hood.
+Demonstrate a production-ready event-driven architecture on Azure:
+- **Azure Event Hubs** as a drop-in Kafka backend for KNative's Kafka Broker
+- **Azure Service Bus** bridged via Camel-K integrations (bidirectional)
+- **Python messaging library** — transport-agnostic CloudEvents bus with handlers
+- **Interactive demo** — React frontend + FastAPI backend + JupyterLab notebook
 
 ## Architecture
 
@@ -14,85 +18,103 @@ Azure Subscription
     ├── VNet (10.0.0.0/16)
     │   └── Subnet: AKS nodes (10.0.1.0/24)
     ├── AKS Cluster (2× Standard_D4s_v5, K8s 1.36)
-    │   ├── KNative Serving (Kourier ingress)
     │   ├── KNative Eventing (Kafka Broker)
-    │   └── Demo apps (hello-knative, event-display)
-    └── Event Hubs Namespace (Standard tier, Kafka-enabled)
-        └── Event Hub ←── Kafka Broker (SASL_SSL :9093)
+    │   ├── Camel-K Integrations (ASB ↔ Broker bridge)
+    │   └── Demo App (backend + frontend + jupyter)
+    ├── Event Hubs Namespace (Kafka-enabled)
+    │   └── Event Hub ← Kafka Broker backend
+    └── Service Bus Namespace (sbns-knative-lab)
+        ├── knative-inbound   (external → broker)
+        ├── knative-outbound  (broker → external)
+        └── knative-dlq       (dead letters)
 ```
 
-**Event flow:**
+**Event flows:**
 ```
-CloudEvent (HTTP POST) → Kafka Broker Ingress → Azure Event Hubs → Kafka Broker Dispatcher → Trigger → Your App
+# Internal: CloudEvents via Kafka Broker
+App → POST /api/send → Kafka Broker → Trigger → Backend /events/
+
+# Inbound: External → ASB → Broker
+External System → ASB queue → Camel-K → Kafka Broker → Trigger → Your App
+
+# Outbound: Broker → ASB → External
+Your App → Kafka Broker → Camel-K → ASB queue → External System
 ```
 
 ## Quick Start
 
 ```bash
-# 1. Deploy infrastructure (AKS + Event Hubs)
+# 1. Deploy infrastructure
 cd terraform
-cp terraform.tfvars.example terraform.tfvars  # add your subscription_id
+cp terraform.tfvars.example terraform.tfvars
 terraform init && terraform apply
 
 # 2. Connect to AKS
 az aks get-credentials --resource-group rg-knative-lab --name aks-knative-lab
 
-# 3. Install KNative Serving + Eventing + Kafka Broker
+# 3. Install KNative + Kafka Broker
 ./scripts/install-knative.sh
-./scripts/reinstall-kafka-components.sh  # fix v1.22.1 manifest bug
-
-# 4. Wire Event Hubs as Kafka Broker backend
 ./scripts/setup-kafka-broker.sh
 
-# 5. Deploy demo apps
-kubectl apply -f k8s/demo/hello-knative.yaml
+# 4. Install Camel-K + ASB bridge
+./scripts/install-camel-k.sh
+./scripts/setup-camel-integrations.sh
 
-# 6. Test the event flow
-kubectl run curl --image=curlimages/curl --rm -it --restart=Never -- \
-  -X POST http://kafka-broker-ingress.knative-eventing.svc.cluster.local/default/default \
-  -H 'Content-Type: application/json' \
-  -H 'Ce-Id: test-1' -H 'Ce-Specversion: 1.0' \
-  -H 'Ce-Type: dev.knative.test' -H 'Ce-Source: /test' \
-  -d '{"msg": "Hello from Event Hubs!"}'
+# 5. Build & deploy the demo app
+make all   # acr-login → build → push → deploy
+```
 
-# Check the event arrived
-kubectl logs -l serving.knative.dev/service=event-display -c user-container
+Get the frontend IP and open it:
+```bash
+kubectl get svc demo-frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
 ```
 
 ## Prerequisites
 
-- Azure CLI (`az`) authenticated
+- Azure CLI (`az`) authenticated with Owner or Contributor role
 - Terraform >= 1.5
 - kubectl >= 1.30
-- Python 3 (for manifest patching)
+- Node.js 18+ (frontend build)
+- Docker (with `--platform linux/amd64` support)
+- Python 3.12+
 
 ## Structure
 
 ```
-terraform/          # IaC — AKS, VNet, Event Hubs
-k8s/demo/           # Demo KNative services + Kafka Broker manifest
-scripts/            # Setup and install scripts
-docs/               # Full documentation (mkdocs)
+terraform/              # IaC — AKS, VNet, Event Hubs, Service Bus, ACR
+scripts/                # Setup and install scripts
+k8s/
+  integrations/         # Camel-K Integration manifests (ASB ↔ Broker)
+  demo/                 # KNative Serving demos (hello-knative, event-display)
+demo/
+  backend/              # FastAPI backend (CloudEvent handler, ASB explorer)
+  frontend/             # React frontend (Vite + shadcn/ui)
+  jupyter/              # JupyterLab with messaging demo notebook
+  k8s/                  # K8s manifests for demo app
+messaging/              # Python messaging library (transport-agnostic)
+docs/                   # Full deployment guide (mkdocs)
 ```
 
 ## Documentation
 
-Full step-by-step guide, architecture details, and troubleshooting: see [`docs/`](docs/).
+Full step-by-step deployment guide: [`docs/`](docs/)
 
-Build locally with [MkDocs Material](https://squidfork.github.io/mkdocs-material/):
-
-```bash
-pip install mkdocs-material
-mkdocs serve
-```
+| Step | Doc |
+|------|-----|
+| Infrastructure (AKS, VNet, Event Hubs, ASB) | [01-infrastructure.md](docs/deploy/01-infrastructure.md) |
+| KNative Serving & Eventing | [02-knative.md](docs/deploy/02-knative.md) |
+| Kafka Broker setup | [03-kafka-broker.md](docs/deploy/03-kafka-broker.md) |
+| Demo application | [04-demo-app.md](docs/deploy/04-demo-app.md) |
+| Camel-K ASB bridge | [06-camel-k-asb.md](docs/deploy/06-camel-k-asb.md) |
 
 ## Key Learnings
 
-- **Event Hubs Kafka mode works** with KNative's Kafka Broker out of the box
-- Auth: SASL_SSL + PLAIN, username = `$ConnectionString` (literal), password = SAS connection string
-- KNative v1.22.1 has a bug: `kafka-broker-dispatcher` StatefulSet references a missing volume — patched by `reinstall-kafka-components.sh`
-- The Kafka Broker ingress service is `kafka-broker-ingress` (not `broker-ingress` from the MT-Channel broker)
-- Event Hubs Standard tier `default.topic.replication.factor` must be `1` (managed service)
+- **Event Hubs Kafka mode works** with KNative's Kafka Broker — no Kafka cluster to manage
+- **Camel-K** provides a lightweight, GitOps-friendly bridge between ASB and KNative
+- Auth: Event Hubs uses SASL_SSL + PLAIN, username = `$ConnectionString` (literal)
+- The Kafka Broker ingress service is `kafka-broker-ingress` (not `broker-ingress`)
+- Event Hubs Standard tier requires `default.topic.replication.factor=1`
+- ASB messages must be sent as structured CloudEvents (JSON body with `specversion`) for Camel-K routing
 
 ## License
 

@@ -12,7 +12,7 @@ from ..models import CloudEvent, PublishOptions
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_BROKER = "http://broker-ingress.knative-eventing.svc.cluster.local/default/default"
+_DEFAULT_BROKER = "http://kafka-broker-ingress.knative-eventing.svc.cluster.local/default/default"
 
 
 class KNativeEventingPublisher:
