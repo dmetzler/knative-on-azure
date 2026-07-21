@@ -1,121 +1,240 @@
-# KNative on Azure — Event-Driven Messaging with Kafka Broker & Azure Service Bus
+# KNative on Azure — Platform Engineering POC
 
-> **Lab / Demo:** Run KNative Eventing on AKS with a Kafka Broker backed by Azure Event Hubs, bridged to Azure Service Bus via Camel-K. Includes a full interactive demo app with a Python messaging library.
+## What is this?
 
-## Goal
+A proof-of-concept that shows how to build a **developer platform on AKS** that handles security automatically. The developer writes a simple YAML describing their service, and the platform generates all the security and networking configuration.
 
-Demonstrate a production-ready event-driven architecture on Azure:
-- **Azure Event Hubs** as a drop-in Kafka backend for KNative's Kafka Broker
-- **Azure Service Bus** bridged via Camel-K integrations (bidirectional)
-- **Python messaging library** — transport-agnostic CloudEvents bus with handlers
-- **Interactive demo** — React frontend + FastAPI backend + JupyterLab notebook
+The goal: **make the secure path the easy path.**
+
+## The Problem
+
+In a typical Kubernetes setup, deploying a service means creating and maintaining:
+- A Deployment (or KNative Service)
+- A Service account
+- NetworkPolicies (L3/L4 firewall rules)
+- Istio AuthorizationPolicies (L7 identity-based access control)
+- mTLS configuration
+- Autoscaling rules
+
+That's 6+ YAML files per service, all manually maintained and easy to get wrong. Developers either skip security entirely ("it works without policies") or copy-paste from other services and end up with overly permissive rules.
+
+## The Solution: AcmeService
+
+We use **KRO (Kube Resource Orchestrator)** to define a custom resource called `AcmeService`. The developer declares *what* their service needs, and KRO generates *how* to secure it.
+
+### What the developer writes
+
+```yaml
+apiVersion: platform.acme.com/v1alpha1
+kind: AcmeService
+metadata:
+  name: demo-backend
+spec:
+  template:
+    metadata:
+      labels:
+        app: demo-backend
+    spec:
+      containers:
+        - name: backend
+          image: myregistry.azurecr.io/demo-backend:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: BROKER_URL
+              value: "http://kafka-broker-ingress.knative-eventing.svc.cluster.local/default/default"
+  service:
+    port: 8000
+  scaling:
+    type: static           # or "knative" for scale-to-zero
+  security:
+    ingress: false          # not exposed externally
+    eventingSink: true      # receives CloudEvents from the broker
+    eventingSource: true    # publishes CloudEvents to the broker
+    allowFrom:
+      - demo-frontend       # only the frontend can call me
+```
+
+### What the platform generates
+
+From that single resource, KRO automatically creates:
+
+| Generated Resource | Purpose |
+|---|---|
+| **ServiceAccount** `demo-backend` | Unique identity in the Istio mesh |
+| **Deployment** or **KNative Service** | Based on `scaling.type` |
+| **NetworkPolicy** `demo-backend-deny-ingress` | Default deny — no traffic in unless allowed |
+| **NetworkPolicy** `demo-backend-allow-eventing` | KNative dispatcher/activator can deliver events |
+| **NetworkPolicy** `demo-backend-allow-from-demo-frontend` | Only frontend pods can reach the backend |
+| **AuthorizationPolicy** `demo-backend-allow-eventing` | Istio L7: only knative-eventing namespace |
+| **AuthorizationPolicy** `demo-backend-allow-from-demo-frontend` | Istio L7: only the `demo-frontend` service account |
+
+**Two layers of security, zero effort from the developer.**
 
 ## Architecture
 
 ```
-Azure Subscription
-└── Resource Group (rg-knative-lab)
-    ├── VNet (10.0.0.0/16)
-    │   └── Subnet: AKS nodes (10.0.1.0/24)
-    ├── AKS Cluster (2× Standard_D4s_v5, K8s 1.36)
-    │   ├── KNative Eventing (Kafka Broker)
-    │   ├── Camel-K Integrations (ASB ↔ Broker bridge)
-    │   └── Demo App (backend + frontend + jupyter)
-    ├── Event Hubs Namespace (Kafka-enabled)
-    │   └── Event Hub ← Kafka Broker backend
-    └── Service Bus Namespace (sbns-knative-lab)
-        ├── knative-inbound   (external → broker)
-        ├── knative-outbound  (broker → external)
-        └── knative-dlq       (dead letters)
+┌─────────────────────────────────────────────────────────────────────┐
+│  AKS Cluster                                                       │
+│                                                                     │
+│  ┌─────────────┐    ┌──────────────────────────────────────────┐   │
+│  │   KRO       │    │  default namespace (mTLS STRICT)         │   │
+│  │ Controller  │    │                                          │   │
+│  │             │    │  ┌──────────┐       ┌──────────────┐     │   │
+│  │ Watches     │───▶│  │ frontend │──────▶│   backend    │     │   │
+│  │ AcmeService │    │  │ (static) │ allow │   (static)   │     │   │
+│  │ instances   │    │  └──────────┘  From └──────┬───────┘     │   │
+│  └─────────────┘    │       ▲                    │  ▲          │   │
+│                     │       │ ingress        pub │  │ events   │   │
+│                     │       │                    ▼  │          │   │
+│  ┌──────────────┐   │  ┌────┴─────┐    ┌─────────────────┐    │   │
+│  │ Istio (AKS)  │   │  │   LB     │    │  Kafka Broker   │    │   │
+│  │ asm-1-29     │   │  └──────────┘    │  (Event Hubs)   │    │   │
+│  │ mTLS between │   │                  └────────┬────────┘    │   │
+│  │ all pods     │   │                           │             │   │
+│  └──────────────┘   │                    ┌──────┴───────┐     │   │
+│                     │                    │  event-display│     │   │
+│  ┌──────────────┐   │                    │  (knative)   │     │   │
+│  │ ArgoCD       │   │                    │  scale-to-0  │     │   │
+│  │ GitOps       │   │                    └──────────────┘     │   │
+│  └──────────────┘   └──────────────────────────────────────────┘   │
+│                                                                     │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌─────────────────┐   │
+│  │ knative-serving   │  │ knative-eventing  │  │ kourier-system  │   │
+│  │ (mTLS PERMISSIVE) │  │ (mTLS PERMISSIVE) │  │ (PERMISSIVE)   │   │
+│  └──────────────────┘  └──────────────────┘  └─────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-**Event flows:**
+## Why each technology?
+
+### KRO (Kube Resource Orchestrator)
+**Problem:** Every service needs 5-8 Kubernetes resources for proper security. Developers won't maintain them.
+**Solution:** KRO lets us define a `ResourceGraphDefinition` that takes one simple input and generates all the resources. It supports conditional resources (`includeWhen`) and collections (`forEach`) to dynamically generate policies based on the service's security requirements.
+
+### KNative Serving
+**Problem:** Microservices that only handle events shouldn't run 24/7.
+**Solution:** `scaling.type: knative` deploys a KNative Service that:
+- **Scales to zero** when idle (saves cost)
+- **Wakes on demand** when events arrive (sub-second cold start)
+- **Manages revisions** — every config change creates a new revision, enabling canary/blue-green deployments
+- **Concurrency-based autoscaling** — better for event-driven workloads than CPU-based HPA
+
+### KNative Eventing + Kafka Broker (Azure Event Hubs)
+**Problem:** Services need to communicate asynchronously without tight coupling.
+**Solution:** A Kafka-backed broker (using Azure Event Hubs as the Kafka backend). Services publish CloudEvents to the broker and subscribe via Triggers. This gives us:
+- **Loose coupling** — services don't know about each other
+- **Event replay** — Kafka retains events, failed deliveries are retried
+- **Fan-out** — one event can trigger multiple subscribers
+
+### Istio Service Mesh (AKS addon)
+**Problem:** NetworkPolicies (L3/L4) can't verify *who* is calling — any pod in an allowed namespace can reach any other pod. A compromised pod in `knative-eventing` could call any service.
+**Solution:** Istio adds **L7 identity-based security**:
+- **mTLS everywhere** — all pod-to-pod traffic is encrypted and authenticated
+- **AuthorizationPolicies** — rules based on cryptographic identity (service accounts), not just IP/namespace
+- **Two-layer model:** NetworkPolicy blocks unauthorized connections *before* they reach the pod. Istio AuthorizationPolicy verifies identity *at* the pod.
+
+### Why both NetworkPolicy AND Istio?
+
+Defense in depth:
+
+| Layer | What it does | Example |
+|---|---|---|
+| **NetworkPolicy** (Calico, L3/L4) | Blocks connections at the network level | "Only pods from `knative-eventing` namespace can reach port 8000" |
+| **AuthorizationPolicy** (Istio, L7) | Verifies identity of the caller | "Only the `demo-frontend` service account can call this service" |
+
+NetworkPolicies are enforced by the CNI — they work even if Istio is misconfigured. Istio AuthorizationPolicies add fine-grained identity checks. Together, they provide robust security that doesn't rely on a single layer.
+
+### ArgoCD (GitOps)
+**Problem:** `kubectl apply` from a developer's laptop is not auditable, reproducible, or safe.
+**Solution:** ArgoCD watches the Git repo and applies changes automatically. Every security policy change goes through a Git commit and PR review before deployment. The cluster state always matches what's in Git.
+
+## mTLS Configuration
+
+| Namespace | Istio Sidecar | mTLS Mode | Why |
+|---|---|---|---|
+| `default` | ✅ Injected | **STRICT** | Application pods — all traffic must be mTLS |
+| `knative-serving` | ✅ Injected | **PERMISSIVE** | Internal components use plaintext for webhooks, probes |
+| `knative-eventing` | ✅ Injected | **PERMISSIVE** | Dispatcher needs mTLS to reach `default`, but internal traffic is mixed |
+| `kourier-system` | ✅ Injected | **PERMISSIVE** | Ingress gateway — accepts external plaintext, speaks mTLS to pods |
+
+## Scaling Modes
+
+| Mode | Backend | Use case | Example |
+|---|---|---|---|
+| `static` | Deployment + Service | Always-on services, APIs, UIs | `demo-frontend`, `demo-backend` |
+| `knative` | KNative Service (ksvc) | Event-driven, bursty, idle-most-of-the-time | `event-display`, `broker-to-asb` |
+
+## Repo Structure
+
 ```
-# Internal: CloudEvents via Kafka Broker
-App → POST /api/send → Kafka Broker → Trigger → Backend /events/
-
-# Inbound: External → ASB → Broker
-External System → ASB queue → Camel-K → Kafka Broker → Trigger → Your App
-
-# Outbound: Broker → ASB → External
-Your App → Kafka Broker → Camel-K → ASB queue → External System
+├── terraform/              # Infrastructure: AKS, Event Hubs, ACR, Istio, DAPR, ArgoCD, KRO
+├── k8s/
+│   ├── root-app.yaml       # ArgoCD bootstrap (apply once manually)
+│   ├── argocd-apps/        # App-of-apps pattern
+│   │   ├── knative-config.yaml
+│   │   ├── demo-apps.yaml
+│   │   └── kro.yaml
+│   ├── knative/            # Broker config, triggers
+│   ├── apps/               # Demo apps + manual security policies
+│   │   ├── backend.yaml, frontend.yaml, trigger.yaml
+│   │   ├── peer-authentication.yaml          # mTLS STRICT for default
+│   │   ├── authz-policies.yaml               # Istio AuthorizationPolicies
+│   │   └── network-policy-*.yaml             # NetworkPolicies
+│   ├── istio/              # Istio config for KNative namespaces
+│   │   └── peer-authentication-knative.yaml  # mTLS PERMISSIVE
+│   └── kro/                # KRO ResourceGraphDefinition
+│       ├── acmeservice-rgd.yaml              # The AcmeService CRD definition
+│       └── examples/
+│           ├── demo-backend.yaml
+│           ├── demo-frontend.yaml
+│           └── event-display.yaml
+├── demo-backend/           # Python FastAPI backend (CloudEvents + REST)
+└── demo-frontend/          # React frontend
 ```
 
-## Quick Start
+## Bootstrap
 
 ```bash
 # 1. Deploy infrastructure
-cd terraform
-cp terraform.tfvars.example terraform.tfvars
-terraform init && terraform apply
+cd terraform && terraform apply
 
-# 2. Connect to AKS
-az aks get-credentials --resource-group rg-knative-lab --name aks-knative-lab
+# 2. Bootstrap ArgoCD (once)
+kubectl apply -f k8s/root-app.yaml
 
-# 3. Install KNative + Kafka Broker
-./scripts/install-knative.sh
-./scripts/setup-kafka-broker.sh
+# 3. Enable Istio sidecar injection
+for ns in default knative-serving knative-eventing kourier-system; do
+  kubectl label namespace $ns istio.io/rev=asm-1-29
+done
 
-# 4. Install Camel-K + ASB bridge
-./scripts/install-camel-k.sh
-./scripts/setup-camel-integrations.sh
+# 4. Apply KNative namespace Istio config
+kubectl apply -f k8s/istio/peer-authentication-knative.yaml
 
-# 5. Build & deploy the demo app
-make all   # acr-login → build → push → deploy
+# 5. Restart pods for sidecar injection
+kubectl rollout restart deployment -n knative-serving
+kubectl rollout restart deployment -n knative-eventing
+kubectl rollout restart statefulset -n knative-eventing
+kubectl rollout restart deployment -n kourier-system
+
+# 6. ArgoCD syncs everything else from Git
 ```
 
-Get the frontend IP and open it:
-```bash
-kubectl get svc demo-frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
-```
+## Security Flow Example
 
-## Prerequisites
+When `demo-frontend` calls `demo-backend`:
 
-- Azure CLI (`az`) authenticated with Owner or Contributor role
-- Terraform >= 1.5
-- kubectl >= 1.30
-- Node.js 18+ (frontend build)
-- Docker (with `--platform linux/amd64` support)
-- Python 3.12+
+1. **NetworkPolicy** `demo-backend-allow-from-demo-frontend` checks: is the source pod labeled `app: demo-frontend`? ✅
+2. **Istio sidecar** intercepts the connection and establishes mTLS
+3. **AuthorizationPolicy** `demo-backend-allow-from-demo-frontend` checks: is the source identity `cluster.local/ns/default/sa/demo-frontend`? ✅
+4. Request reaches the backend container
 
-## Structure
+If a rogue pod tries to call the backend:
+1. **NetworkPolicy** blocks it (wrong label) ❌ — connection never reaches the pod
+2. Even if NetworkPolicy is misconfigured, **AuthorizationPolicy** blocks it (wrong service account) ❌
 
-```
-terraform/              # IaC — AKS, VNet, Event Hubs, Service Bus, ACR
-scripts/                # Setup and install scripts
-k8s/
-  integrations/         # Camel-K Integration manifests (ASB ↔ Broker)
-  demo/                 # KNative Serving demos (hello-knative, event-display)
-demo/
-  backend/              # FastAPI backend (CloudEvent handler, ASB explorer)
-  frontend/             # React frontend (Vite + shadcn/ui)
-  jupyter/              # JupyterLab with messaging demo notebook
-  k8s/                  # K8s manifests for demo app
-messaging/              # Python messaging library (transport-agnostic)
-docs/                   # Full deployment guide (mkdocs)
-```
+## What's Next
 
-## Documentation
-
-Full step-by-step deployment guide: [`docs/`](docs/)
-
-| Step | Doc |
-|------|-----|
-| Infrastructure (AKS, VNet, Event Hubs, ASB) | [01-infrastructure.md](docs/deploy/01-infrastructure.md) |
-| KNative Serving & Eventing | [02-knative.md](docs/deploy/02-knative.md) |
-| Kafka Broker setup | [03-kafka-broker.md](docs/deploy/03-kafka-broker.md) |
-| Demo application | [04-demo-app.md](docs/deploy/04-demo-app.md) |
-| Camel-K ASB bridge | [06-camel-k-asb.md](docs/deploy/06-camel-k-asb.md) |
-
-## Key Learnings
-
-- **Event Hubs Kafka mode works** with KNative's Kafka Broker — no Kafka cluster to manage
-- **Camel-K** provides a lightweight, GitOps-friendly bridge between ASB and KNative
-- Auth: Event Hubs uses SASL_SSL + PLAIN, username = `$ConnectionString` (literal)
-- The Kafka Broker ingress service is `kafka-broker-ingress` (not `broker-ingress`)
-- Event Hubs Standard tier requires `default.topic.replication.factor=1`
-- ASB messages must be sent as structured CloudEvents (JSON body with `specversion`) for Camel-K routing
-
-## License
-
-MIT
+- [ ] Deploy KRO and validate the `AcmeService` ResourceGraphDefinition
+- [ ] Replace manual policies in `k8s/apps/` with `AcmeService` instances
+- [ ] Add DAPR integration for state/pubsub
+- [ ] Upstream PR: KNative OAUTHBEARER support for Azure Event Hubs
