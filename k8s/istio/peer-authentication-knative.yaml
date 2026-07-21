@@ -1,0 +1,30 @@
+# PeerAuthentication PERMISSIVE for KNative namespaces
+# These namespaces need PERMISSIVE because internal KNative components
+# communicate without mTLS (webhooks, probes, internal routing)
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: knative-serving
+spec:
+  mtls:
+    mode: PERMISSIVE
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: knative-eventing
+spec:
+  mtls:
+    mode: PERMISSIVE
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: kourier-system
+spec:
+  mtls:
+    mode: PERMISSIVE
