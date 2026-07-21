@@ -3,61 +3,62 @@
 ## Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      Azure Subscription                         │
-│                                                                 │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │                Resource Group (rg-knative-lab)             │  │
-│  │                                                           │  │
-│  │  ┌─────────────────────────────────────────────────────┐  │  │
-│  │  │              VNet (10.0.0.0/16)                     │  │  │
-│  │  │                                                     │  │  │
-│  │  │  ┌───────────────────────────────────────────────┐  │  │  │
-│  │  │  │        Subnet: AKS nodes (10.0.1.0/24)       │  │  │  │
-│  │  │  │                                               │  │  │  │
-│  │  │  │  ┌─────────────────────────────────────────┐  │  │  │  │
-│  │  │  │  │     AKS Cluster (2× D4s_v5, k8s 1.36)  │  │  │  │  │
-│  │  │  │  │                                         │  │  │  │  │
-│  │  │  │  │  ┌──────────┐  ┌───────────────────┐   │  │  │  │  │
-│  │  │  │  │  │ KNative  │  │  KNative Eventing  │   │  │  │  │  │
-│  │  │  │  │  │ Serving  │  │  (Kafka Broker)    │   │  │  │  │  │
-│  │  │  │  │  │          │  │         │          │   │  │  │  │  │
-│  │  │  │  │  │ Kourier  │  │         │ SASL_SSL │   │  │  │  │  │
-│  │  │  │  │  │ Ingress  │  │         │ :9093    │   │  │  │  │  │
-│  │  │  │  │  └──────────┘  └─────────┼─────────-┘   │  │  │  │  │
-│  │  │  │  └──────────────────────────┼──────────────┘  │  │  │  │
-│  │  │  └─────────────────────────────┼─────────────────┘  │  │  │
-│  │  └────────────────────────────────┼────────────────────┘  │  │
-│  │                                   │                       │  │
-│  │  ┌────────────────────────────────▼───────────────────┐   │  │
-│  │  │         Azure Event Hubs (Standard tier)           │   │  │
-│  │  │         Kafka endpoint: :9093                      │   │  │
-│  │  │         Topic: knative-events                      │   │  │
-│  │  └────────────────────────────────────────────────────┘   │  │
-│  └───────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│  AKS Cluster                                                       │
+│                                                                     │
+│  ┌─────────────┐    ┌──────────────────────────────────────────┐   │
+│  │   KRO       │    │  default namespace (mTLS STRICT)         │   │
+│  │ Controller  │    │                                          │   │
+│  │             │    │  ┌──────────┐       ┌──────────────┐     │   │
+│  │ Watches     │───▶│  │ frontend │──────▶│   backend    │     │   │
+│  │ AcmeService │    │  │ (static) │ allow │   (static)   │     │   │
+│  │ instances   │    │  └──────────┘  From └──────┬───────┘     │   │
+│  └─────────────┘    │       ▲                    │  ▲          │   │
+│                     │       │ ingress        pub │  │ events   │   │
+│  ┌──────────────┐   │  ┌────┴─────┐    ┌────────┴────────┐    │   │
+│  │ Istio (AKS)  │   │  │   LB     │    │  Kafka Broker   │    │   │
+│  │ asm-1-29     │   │  └──────────┘    │  (Event Hubs)   │    │   │
+│  │ mTLS between │   │                  └────────┬────────┘    │   │
+│  │ all pods     │   │                           │             │   │
+│  └──────────────┘   │                    ┌──────┴───────┐     │   │
+│                     │                    │ event-display │     │   │
+│  ┌──────────────┐   │                    │  (knative)   │     │   │
+│  │ ArgoCD       │   │                    │ scale-to-0   │     │   │
+│  │ GitOps       │   │                    └──────────────┘     │   │
+│  └──────────────┘   └──────────────────────────────────────────┘   │
+│                                                                     │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌─────────────────┐   │
+│  │ knative-serving   │  │ knative-eventing  │  │ kourier-system  │   │
+│  │ (mTLS PERMISSIVE) │  │ (mTLS PERMISSIVE) │  │ (PERMISSIVE)   │   │
+│  └──────────────────┘  └──────────────────┘  └─────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Event Flow
 
 ```
-Producer (curl/app)
+User (browser)
     │
     ▼
-Kafka Broker Ingress (kafka-broker-ingress service)
+demo-frontend (React UI, LoadBalancer)
+    │  HTTP POST /api/events
+    ▼
+demo-backend (FastAPI)
+    │  Publishes CloudEvent
+    ▼
+Kafka Broker Ingress
     │  Accepts CloudEvents over HTTP
     ▼
-Azure Event Hubs (Kafka protocol, SASL_SSL)
+Azure Event Hubs (Kafka protocol, SASL_SSL :9093)
     │  Events stored as Kafka records
     ▼
 Kafka Broker Dispatcher (reads from Event Hubs)
-    │  Matches Triggers
-    ▼
-Trigger (event-display-trigger)
-    │  Routes matching events
-    ▼
-event-display (KNative Serving service)
-    Logs the received CloudEvent
+    │  Matches Triggers, delivers to subscribers
+    ├───────────────────────────┐
+    ▼                           ▼
+demo-backend                 event-display
+(processes event,            (logs the event,
+ returns response)            scale-to-zero ksvc)
 ```
 
 ## Networking
@@ -69,12 +70,12 @@ event-display (KNative Serving service)
 | Pod IPs (CNI overlay) | Virtual (not routable on VNet) |
 | K8s services | `172.16.0.0/16` |
 | K8s DNS | `172.16.0.10` |
-| Event Hubs Kafka | `<namespace>.servicebus.windows.net:9093` |
+| Event Hubs Kafka | `evhns-knative-lab.servicebus.windows.net:9093` |
 | Kourier LB | Public IP (auto-assigned) |
 
-## Authentication
+## Authentication to Event Hubs
 
-Azure Event Hubs Kafka authentication uses **SASL_SSL + PLAIN**:
+Azure Event Hubs Kafka authentication uses **SASL_SSL + PLAIN** with a SAS connection string:
 
 | Parameter | Value |
 |-----------|-------|
@@ -83,4 +84,9 @@ Azure Event Hubs Kafka authentication uses **SASL_SSL + PLAIN**:
 | Username | `$ConnectionString` (literal string) |
 | Password | SAS connection string from Event Hubs |
 
-This is configured via a Kubernetes Secret referenced in the `kafka-broker-config` ConfigMap through `auth.secret.ref.name`.
+!!! note "Why not OAuth/OAUTHBEARER?"
+    Event Hubs supports OAUTHBEARER for Kafka, but KNative's Kafka Broker does not implement OAUTHBEARER natively. We've prepared an upstream proposal to add Azure OAUTHBEARER support to KNative. See [Troubleshooting](troubleshooting.md) for details.
+
+## Security Architecture
+
+See [Security Model](security.md) for the full two-layer defense model (NetworkPolicy + Istio AuthorizationPolicy).

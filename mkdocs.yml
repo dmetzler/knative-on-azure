@@ -1,5 +1,5 @@
 site_name: KNative on Azure
-site_description: Deploy KNative Serving & Eventing on AKS with Azure Event Hubs (Kafka mode)
+site_description: Platform Engineering POC — KNative, Istio, KRO on AKS
 repo_url: https://github.com/dmetzler/knative-on-azure
 
 theme:
@@ -15,6 +15,9 @@ theme:
 nav:
   - Home: index.md
   - Architecture: architecture.md
+  - Security Model: security.md
+  - AcmeService (KRO): acmeservice.md
+  - GitOps (ArgoCD): gitops.md
   - Prerequisites: prerequisites.md
   - Deployment Guide:
       - 1. Infrastructure (Terraform): deploy/01-infrastructure.md
@@ -22,6 +25,7 @@ nav:
       - 3. Kafka Broker + Event Hubs: deploy/03-kafka-broker.md
       - 4. Demo Application: deploy/04-demo-app.md
       - 5. Camel-K + Service Bus Bridge: deploy/06-camel-k-asb.md
+      - 6. Production Considerations: deploy/07-production-considerations.md
   - Troubleshooting: troubleshooting.md
   - Teardown: teardown.md
 
