@@ -34,7 +34,7 @@ resource "azurerm_kubernetes_cluster" "main" {
 
   service_mesh_profile {
     mode      = "Istio"
-    revisions = ["asm-1-24"]
+    revisions = ["asm-1-29"]
   }
 
   tags = {
