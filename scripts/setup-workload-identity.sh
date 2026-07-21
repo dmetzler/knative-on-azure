@@ -25,6 +25,7 @@ cd "$TF_DIR"
 CLIENT_ID=$(terraform output -raw kafka_broker_identity_client_id)
 BOOTSTRAP_SERVER=$(terraform output -raw kafka_bootstrap_server)
 EVENTHUBS_NAMESPACE=$(terraform output -raw eventhubs_namespace)
+SUBSCRIPTION_ID=$(terraform output -raw subscription_id 2>/dev/null || echo "")
 
 echo "   Client ID:  ${CLIENT_ID}"
 echo "   Bootstrap:  ${BOOTSTRAP_SERVER}"
@@ -98,7 +99,7 @@ spec:
               echo "Logging in with federated token..."
               az login --federated-token "\$(cat \$AZURE_FEDERATED_TOKEN_FILE)" \
                 --service-principal -u "\$AZURE_CLIENT_ID" -t "\$AZURE_TENANT_ID" \
-                --output none
+                --allow-no-subscriptions --output none
 
               echo "Fetching Azure AD token for Event Hubs..."
               TOKEN=\$(az account get-access-token \
