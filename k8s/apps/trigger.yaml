@@ -5,4 +5,4 @@ metadata:
 spec:
   broker: default
   subscriber:
-    uri: http://demo-backend.default.svc.cluster.local:8000/events/
+    uri: http://demo-backend.default.svc.cluster.local/events/

@@ -43,5 +43,5 @@ spec:
   selector:
     app: demo-backend
   ports:
-    - port: 8000
+    - port: 80
       targetPort: 8000
