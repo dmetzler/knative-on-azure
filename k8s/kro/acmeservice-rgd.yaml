@@ -190,3 +190,47 @@ spec:
           action: ALLOW
           rules:
             - {}
+
+    # --- NetworkPolicy: allow from specific services (collection) ---
+    - id: netpol-allow-from
+      forEach:
+        - svc: ${schema.spec.security.allowFrom}
+      template:
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: ${schema.metadata.name}-allow-from-${svc}
+          namespace: ${schema.metadata.namespace}
+        spec:
+          podSelector:
+            matchLabels: ${schema.spec.template.metadata.labels}
+          policyTypes:
+            - Ingress
+          ingress:
+            - from:
+                - podSelector:
+                    matchLabels:
+                      app: ${svc}
+              ports:
+                - protocol: TCP
+                  port: ${schema.spec.service.port}
+
+    # --- AuthorizationPolicy: allow from specific services (collection) ---
+    - id: authz-allow-from
+      forEach:
+        - svc: ${schema.spec.security.allowFrom}
+      template:
+        apiVersion: security.istio.io/v1
+        kind: AuthorizationPolicy
+        metadata:
+          name: ${schema.metadata.name}-allow-from-${svc}
+          namespace: ${schema.metadata.namespace}
+        spec:
+          selector:
+            matchLabels: ${schema.spec.template.metadata.labels}
+          action: ALLOW
+          rules:
+            - from:
+                - source:
+                    principals:
+                      - cluster.local/ns/${schema.metadata.namespace}/sa/${svc}
