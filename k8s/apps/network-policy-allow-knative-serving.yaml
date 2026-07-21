@@ -27,6 +27,8 @@ spec:
         - protocol: TCP
           port: 8012
         - protocol: TCP
+          port: 8013
+        - protocol: TCP
           port: 8080
         - protocol: TCP
           port: 8443
