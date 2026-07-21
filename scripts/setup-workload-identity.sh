@@ -68,6 +68,37 @@ metadata:
     azure.workload.identity/use: "true"
 EOF
 
+echo "=== Creating RBAC for token-refresh (Secret write access) ==="
+cat <<EOF | kubectl apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kafka-token-refresh
+  namespace: knative-eventing
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["kafka-auth-secret"]
+  verbs: ["get", "create", "update", "patch"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kafka-token-refresh
+  namespace: knative-eventing
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kafka-token-refresh
+subjects:
+- kind: ServiceAccount
+  name: kafka-token-refresh
+  namespace: knative-eventing
+EOF
+
 echo "=== Deploying token-refresh CronJob ==="
 cat <<EOF | kubectl apply -f -
 apiVersion: batch/v1
@@ -113,20 +144,55 @@ spec:
 
               echo "Token obtained (length: \${#TOKEN}), updating secret..."
 
-              # Create/update the auth secret with OAUTHBEARER-style credentials
-              # Note: We use SASL_SSL + PLAIN because KNative's Go control plane
-              # doesn't support Azure OAUTHBEARER natively yet.
-              # The trick: Event Hubs accepts OAuth tokens via SASL/PLAIN where
-              # username = "\\\$aad" and password = the OAuth access token.
-              kubectl create secret generic kafka-auth-secret \
-                --namespace knative-eventing \
-                --from-literal=protocol=SASL_SSL \
-                --from-literal=sasl.mechanism=PLAIN \
-                --from-literal='user=\$aad' \
-                --from-literal=password="\$TOKEN" \
-                --dry-run=client -o yaml | kubectl apply -f -
+              # Update the secret via Kubernetes API (no kubectl in this image)
+              KUBE_TOKEN=\$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+              KUBE_CA=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+              KUBE_API="https://kubernetes.default.svc"
+              NS="knative-eventing"
 
-              echo "Secret updated successfully"
+              # Base64 encode the secret data
+              B64_PROTO=\$(echo -n "SASL_SSL" | base64 -w0)
+              B64_MECH=\$(echo -n "PLAIN" | base64 -w0)
+              B64_USER=\$(echo -n '\$aad' | base64 -w0)
+              B64_PASS=\$(echo -n "\$TOKEN" | base64 -w0)
+
+              SECRET_JSON=\$(cat <<EOJSON
+              {
+                "apiVersion": "v1",
+                "kind": "Secret",
+                "metadata": {
+                  "name": "kafka-auth-secret",
+                  "namespace": "\$NS"
+                },
+                "data": {
+                  "protocol": "\$B64_PROTO",
+                  "sasl.mechanism": "\$B64_MECH",
+                  "user": "\$B64_USER",
+                  "password": "\$B64_PASS"
+                }
+              }
+              EOJSON
+              )
+
+              # Try PUT (replace), fall back to POST (create) if 404
+              HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" \
+                --cacert \$KUBE_CA \
+                -X PUT \
+                -H "Authorization: Bearer \$KUBE_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "\$SECRET_JSON" \
+                "\$KUBE_API/api/v1/namespaces/\$NS/secrets/kafka-auth-secret")
+
+              if [ "\$HTTP_CODE" = "404" ]; then
+                curl -sf --cacert \$KUBE_CA \
+                  -X POST \
+                  -H "Authorization: Bearer \$KUBE_TOKEN" \
+                  -H "Content-Type: application/json" \
+                  -d "\$SECRET_JSON" \
+                  "\$KUBE_API/api/v1/namespaces/\$NS/secrets"
+              fi
+
+              echo "Secret updated successfully (HTTP \$HTTP_CODE)"
 EOF
 
 echo "=== Running initial token refresh ==="
