@@ -1,0 +1,19 @@
+# Demo apps managed by ArgoCD
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-apps
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/dmetzler/knative-on-azure.git
+    targetRevision: main
+    path: k8s/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
