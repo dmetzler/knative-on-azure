@@ -1,0 +1,31 @@
+# event-display: KNative scale-to-zero event sink
+# scaling: knative (scales to 0 when no events, wakes on demand)
+apiVersion: platform.acme.com/v1alpha1
+kind: AcmeService
+metadata:
+  name: event-display
+  namespace: default
+spec:
+  template:
+    metadata:
+      labels:
+        app: event-display
+      annotations: {}
+    spec:
+      containers:
+        - name: event-display
+          image: gcr.io/knative-releases/knative.dev/eventing/cmd/event_display
+          ports:
+            - containerPort: 8080
+  service:
+    port: 8080
+  scaling:
+    type: knative
+    minScale: 0
+    maxScale: 5
+    concurrency: 50
+  security:
+    ingress: false
+    eventingSink: true
+    eventingSource: false
+    allowFrom: []

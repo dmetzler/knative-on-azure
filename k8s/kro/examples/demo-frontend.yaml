@@ -1,4 +1,5 @@
-# Example: demo-frontend as AcmeService
+# demo-frontend: external-facing UI
+# scaling: static (always-on, serves the web UI)
 apiVersion: platform.acme.com/v1alpha1
 kind: AcmeService
 metadata:
@@ -18,7 +19,9 @@ spec:
             - containerPort: 80
   service:
     port: 80
-    type: ClusterIP
+    type: LoadBalancer
+  scaling:
+    type: static
   security:
     ingress: true
     eventingSink: false
