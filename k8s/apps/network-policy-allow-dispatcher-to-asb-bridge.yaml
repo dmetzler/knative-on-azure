@@ -1,0 +1,25 @@
+# Allow KNative dispatcher to deliver events to broker-to-asb (KNative Serving)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-knative-dispatcher-to-asb-bridge
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      serving.knative.dev/service: broker-to-asb
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: knative-eventing
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: knative-serving
+      ports:
+        - protocol: TCP
+          port: 8012
+        - protocol: TCP
+          port: 8080
