@@ -4,58 +4,25 @@ metadata:
   name: acmeservice
 spec:
   schema:
-    apiVersion: platform.acme.com/v1alpha1
+    apiVersion: v1alpha1
     kind: AcmeService
+    group: platform.acme.com
     spec:
-      template:
-        metadata:
-          labels:
-            type: object
-            additionalProperties:
-              type: string
-          annotations:
-            type: object
-            additionalProperties:
-              type: string
-        spec:
-          type: object
-          x-kubernetes-preserve-unknown-fields: true
-      service:
-        port:
-          type: integer
-        type:
-          type: string
-          default: ClusterIP
-      scaling:
-        type:
-          type: string
-          default: knative
-          # "knative" = ksvc (scale-to-zero, revisions, concurrency-based autoscaling)
-          # "static"  = Deployment + Service (always-on)
-        minScale:
-          type: integer
-          default: 0
-        maxScale:
-          type: integer
-          default: 10
-        concurrency:
-          type: integer
-          default: 100
-      security:
-        ingress:
-          type: boolean
-          default: false
-        eventingSink:
-          type: boolean
-          default: false
-        eventingSource:
-          type: boolean
-          default: false
-        allowFrom:
-          type: array
-          items:
-            type: string
-          default: []
+      # PodTemplate-style spec (uses object for flexibility)
+      template: object | required=true
+      # Service config
+      servicePort: integer | required=true
+      serviceType: string | default="ClusterIP"
+      # Scaling
+      scalingType: string | default="knative"
+      minScale: integer | default=0
+      maxScale: integer | default=10
+      concurrency: integer | default=100
+      # Security
+      ingress: boolean | default=false
+      eventingSink: boolean | default=false
+      eventingSource: boolean | default=false
+      allowFrom: "[]string"
 
   resources:
     # --- ServiceAccount (unique identity per service) ---
@@ -73,29 +40,29 @@ spec:
 
     - id: deployment
       includeWhen:
-        - ${schema.spec.scaling.type == "static"}
+        - ${schema.spec.scalingType == "static"}
       template:
         apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: ${schema.metadata.name}
           namespace: ${schema.metadata.namespace}
-          labels: ${schema.spec.template.metadata.labels}
         spec:
           replicas: 1
           selector:
-            matchLabels: ${schema.spec.template.metadata.labels}
+            matchLabels:
+              app: ${schema.metadata.name}
           template:
             metadata:
-              labels: ${schema.spec.template.metadata.labels}
-              annotations: ${schema.spec.template.metadata.annotations}
+              labels:
+                app: ${schema.metadata.name}
             spec:
               serviceAccountName: ${schema.metadata.name}
-              containers: ${schema.spec.template.spec.containers}
+              containers: ${schema.spec.template.containers}
 
     - id: service
       includeWhen:
-        - ${schema.spec.scaling.type == "static"}
+        - ${schema.spec.scalingType == "static"}
       template:
         apiVersion: v1
         kind: Service
@@ -103,11 +70,12 @@ spec:
           name: ${schema.metadata.name}
           namespace: ${schema.metadata.namespace}
         spec:
-          type: ${schema.spec.service.type}
-          selector: ${schema.spec.template.metadata.labels}
+          type: ${schema.spec.serviceType}
+          selector:
+            app: ${schema.metadata.name}
           ports:
-            - port: ${schema.spec.service.port}
-              targetPort: ${schema.spec.service.port}
+            - port: ${schema.spec.servicePort}
+              targetPort: ${schema.spec.servicePort}
 
     # =============================================
     # KNATIVE mode: KNative Service (ksvc)
@@ -115,26 +83,26 @@ spec:
 
     - id: ksvc
       includeWhen:
-        - ${schema.spec.scaling.type == "knative"}
+        - ${schema.spec.scalingType == "knative"}
       template:
         apiVersion: serving.knative.dev/v1
         kind: Service
         metadata:
           name: ${schema.metadata.name}
           namespace: ${schema.metadata.namespace}
-          labels: ${schema.spec.template.metadata.labels}
         spec:
           template:
             metadata:
-              labels: ${schema.spec.template.metadata.labels}
+              labels:
+                app: ${schema.metadata.name}
               annotations:
-                autoscaling.knative.dev/minScale: ${string(schema.spec.scaling.minScale)}
-                autoscaling.knative.dev/maxScale: ${string(schema.spec.scaling.maxScale)}
-                autoscaling.knative.dev/target: ${string(schema.spec.scaling.concurrency)}
+                autoscaling.knative.dev/minScale: ${string(schema.spec.minScale)}
+                autoscaling.knative.dev/maxScale: ${string(schema.spec.maxScale)}
+                autoscaling.knative.dev/target: ${string(schema.spec.concurrency)}
             spec:
               serviceAccountName: ${schema.metadata.name}
-              containerConcurrency: ${schema.spec.scaling.concurrency}
-              containers: ${schema.spec.template.spec.containers}
+              containerConcurrency: ${schema.spec.concurrency}
+              containers: ${schema.spec.template.containers}
 
     # =============================================
     # Security: NetworkPolicies
@@ -150,14 +118,15 @@ spec:
           namespace: ${schema.metadata.namespace}
         spec:
           podSelector:
-            matchLabels: ${schema.spec.template.metadata.labels}
+            matchLabels:
+              app: ${schema.metadata.name}
           policyTypes:
             - Ingress
 
     # Allow KNative eventing/serving/kourier (if eventingSink)
     - id: netpol-eventing
       includeWhen:
-        - ${schema.spec.security.eventingSink}
+        - ${schema.spec.eventingSink}
       template:
         apiVersion: networking.k8s.io/v1
         kind: NetworkPolicy
@@ -166,7 +135,8 @@ spec:
           namespace: ${schema.metadata.namespace}
         spec:
           podSelector:
-            matchLabels: ${schema.spec.template.metadata.labels}
+            matchLabels:
+              app: ${schema.metadata.name}
           policyTypes:
             - Ingress
           ingress:
@@ -182,7 +152,7 @@ spec:
                       kubernetes.io/metadata.name: kourier-system
               ports:
                 - protocol: TCP
-                  port: ${schema.spec.service.port}
+                  port: ${schema.spec.servicePort}
                 - protocol: TCP
                   port: 8012
                 - protocol: TCP
@@ -195,7 +165,7 @@ spec:
     # Allow external ingress (if ingress)
     - id: netpol-ingress
       includeWhen:
-        - ${schema.spec.security.ingress}
+        - ${schema.spec.ingress}
       template:
         apiVersion: networking.k8s.io/v1
         kind: NetworkPolicy
@@ -204,18 +174,19 @@ spec:
           namespace: ${schema.metadata.namespace}
         spec:
           podSelector:
-            matchLabels: ${schema.spec.template.metadata.labels}
+            matchLabels:
+              app: ${schema.metadata.name}
           policyTypes:
             - Ingress
           ingress:
             - ports:
                 - protocol: TCP
-                  port: ${schema.spec.service.port}
+                  port: ${schema.spec.servicePort}
 
     # Allow from specific services (collection)
     - id: netpol-allow-from
       forEach:
-        - svc: ${schema.spec.security.allowFrom}
+        - svc: ${schema.spec.allowFrom}
       template:
         apiVersion: networking.k8s.io/v1
         kind: NetworkPolicy
@@ -224,7 +195,8 @@ spec:
           namespace: ${schema.metadata.namespace}
         spec:
           podSelector:
-            matchLabels: ${schema.spec.template.metadata.labels}
+            matchLabels:
+              app: ${schema.metadata.name}
           policyTypes:
             - Ingress
           ingress:
@@ -234,7 +206,7 @@ spec:
                       app: ${svc}
               ports:
                 - protocol: TCP
-                  port: ${schema.spec.service.port}
+                  port: ${schema.spec.servicePort}
 
     # =============================================
     # Security: Istio AuthorizationPolicies
@@ -243,7 +215,7 @@ spec:
     # Allow KNative eventing (if eventingSink)
     - id: authz-eventing
       includeWhen:
-        - ${schema.spec.security.eventingSink}
+        - ${schema.spec.eventingSink}
       template:
         apiVersion: security.istio.io/v1
         kind: AuthorizationPolicy
@@ -252,7 +224,8 @@ spec:
           namespace: ${schema.metadata.namespace}
         spec:
           selector:
-            matchLabels: ${schema.spec.template.metadata.labels}
+            matchLabels:
+              app: ${schema.metadata.name}
           action: ALLOW
           rules:
             - from:
@@ -265,7 +238,7 @@ spec:
     # Allow external (if ingress)
     - id: authz-ingress
       includeWhen:
-        - ${schema.spec.security.ingress}
+        - ${schema.spec.ingress}
       template:
         apiVersion: security.istio.io/v1
         kind: AuthorizationPolicy
@@ -274,7 +247,8 @@ spec:
           namespace: ${schema.metadata.namespace}
         spec:
           selector:
-            matchLabels: ${schema.spec.template.metadata.labels}
+            matchLabels:
+              app: ${schema.metadata.name}
           action: ALLOW
           rules:
             - {}
@@ -282,7 +256,7 @@ spec:
     # Allow from specific services (collection)
     - id: authz-allow-from
       forEach:
-        - svc: ${schema.spec.security.allowFrom}
+        - svc: ${schema.spec.allowFrom}
       template:
         apiVersion: security.istio.io/v1
         kind: AuthorizationPolicy
@@ -291,7 +265,8 @@ spec:
           namespace: ${schema.metadata.namespace}
         spec:
           selector:
-            matchLabels: ${schema.spec.template.metadata.labels}
+            matchLabels:
+              app: ${schema.metadata.name}
           action: ALLOW
           rules:
             - from:

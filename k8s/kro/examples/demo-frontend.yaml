@@ -1,5 +1,4 @@
 # demo-frontend: external-facing UI
-# scaling: static (always-on, serves the web UI)
 apiVersion: platform.acme.com/v1alpha1
 kind: AcmeService
 metadata:
@@ -7,23 +6,15 @@ metadata:
   namespace: default
 spec:
   template:
-    metadata:
-      labels:
-        app: demo-frontend
-      annotations: {}
-    spec:
-      containers:
-        - name: frontend
-          image: acrknativelab.azurecr.io/demo-frontend:latest
-          ports:
-            - containerPort: 80
-  service:
-    port: 80
-    type: LoadBalancer
-  scaling:
-    type: static
-  security:
-    ingress: true
-    eventingSink: false
-    eventingSource: false
-    allowFrom: []
+    containers:
+      - name: frontend
+        image: acrknativelab.azurecr.io/demo-frontend:latest
+        ports:
+          - containerPort: 80
+  servicePort: 80
+  serviceType: LoadBalancer
+  scalingType: static
+  ingress: true
+  eventingSink: false
+  eventingSource: false
+  allowFrom: []
