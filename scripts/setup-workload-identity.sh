@@ -147,7 +147,7 @@ spec:
                 exit 1
               fi
 
-              echo "Token obtained (length: ${#TOKEN}), updating secret..."
+              echo "Token obtained (length: \${#TOKEN}), updating secret..."
 
               # Create/update the auth secret
               # Event Hubs accepts OAuth tokens via SASL/PLAIN: username=$aad, password=token
@@ -155,8 +155,8 @@ spec:
                 --namespace knative-eventing \
                 --from-literal=protocol=SASL_SSL \
                 --from-literal=sasl.mechanism=PLAIN \
-                --from-literal='user=$aad' \
-                --from-literal=password="$TOKEN" \
+                --from-literal='user=\$aad' \
+                --from-literal=password="\$TOKEN" \
                 --dry-run=client -o yaml | kubectl apply -f -
 
               echo "Secret updated successfully"
