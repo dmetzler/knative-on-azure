@@ -22,12 +22,11 @@ spec:
               name: default
             steps:
               - log:
-                  message: "Forwarding CloudEvent to ASB: type=${header.ce-type}, source=${header.ce-source}, id=${header.ce-id}"
-              - marshal:
-                  json:
-                    library: jackson
+                  message: "Forwarding CloudEvent to ASB: type=${header.CamelCloudEventType}, source=${header.CamelCloudEventSource}, id=${header.CamelCloudEventID}"
+              - convertBodyTo:
+                  type: "java.lang.String"
               - setBody:
-                  simple: '{"specversion":"${header.ce-specversion}","type":"${header.ce-type}","source":"${header.ce-source}","id":"${header.ce-id}","time":"${header.ce-time}","datacontenttype":"application/json","data":${body}}'
+                  simple: '{"specversion":"${header.CamelCloudEventSpecVersion}","type":"${header.CamelCloudEventType}","source":"${header.CamelCloudEventSource}","id":"${header.CamelCloudEventID}","time":"${header.CamelCloudEventTime}","datacontenttype":"application/json","data":${body}}'
               - setHeader:
                   name: "ContentType"
                   constant: "application/cloudevents+json"
