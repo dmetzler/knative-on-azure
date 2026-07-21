@@ -56,6 +56,19 @@ resource "azurerm_servicebus_subscription" "all_events" {
   lock_duration      = "PT30S"
 }
 
+# ----- Role Assignments: kubelet MI for DAPR pub/sub -----
+resource "azurerm_role_assignment" "kubelet_asb_sender" {
+  scope                = azurerm_servicebus_namespace.main.id
+  role_definition_name = "Azure Service Bus Data Sender"
+  principal_id         = azurerm_kubernetes_cluster.main.kubelet_identity[0].object_id
+}
+
+resource "azurerm_role_assignment" "kubelet_asb_receiver" {
+  scope                = azurerm_servicebus_namespace.main.id
+  role_definition_name = "Azure Service Bus Data Receiver"
+  principal_id         = azurerm_kubernetes_cluster.main.kubelet_identity[0].object_id
+}
+
 # ----- SAS Policy: full access for Camel-K (send + listen + manage) -----
 resource "azurerm_servicebus_namespace_authorization_rule" "camel_k" {
   name         = "camel-k"
