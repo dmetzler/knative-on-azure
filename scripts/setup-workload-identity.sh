@@ -150,7 +150,7 @@ spec:
               echo "Token obtained (length: \${#TOKEN}), updating secret..."
 
               # Create/update the auth secret
-              # Event Hubs accepts OAuth tokens via SASL/PLAIN: username=$aad, password=token
+              # Event Hubs accepts OAuth tokens via SASL/PLAIN: username=\$aad, password=token
               kubectl create secret generic kafka-auth-secret \
                 --namespace knative-eventing \
                 --from-literal=protocol=SASL_SSL \
