@@ -1,26 +1,28 @@
-# Allow KNative dispatcher to deliver events to broker-to-asb (KNative Serving)
+# Allow Kourier and KNative Serving/Eventing to reach all KNative Serving pods
+# Kourier routes traffic to pods via queue-proxy
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-knative-dispatcher-to-asb-bridge
+  name: allow-knative-serving-traffic
   namespace: default
 spec:
   podSelector:
-    matchLabels:
-      serving.knative.dev/service: broker-to-asb
+    matchExpressions:
+      - key: serving.knative.dev/configuration
+        operator: Exists
   policyTypes:
     - Ingress
   ingress:
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: knative-eventing
+              kubernetes.io/metadata.name: kourier-system
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: knative-serving
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: kourier-system
+              kubernetes.io/metadata.name: knative-eventing
       ports:
         - protocol: TCP
           port: 8012
