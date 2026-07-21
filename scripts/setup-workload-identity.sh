@@ -95,10 +95,15 @@ spec:
             - -c
             - |
               set -euo pipefail
+              echo "Logging in with federated token..."
+              az login --federated-token "\$(cat \$AZURE_FEDERATED_TOKEN_FILE)" \
+                --service-principal -u "\$AZURE_CLIENT_ID" -t "\$AZURE_TENANT_ID" \
+                --output none
+
               echo "Fetching Azure AD token for Event Hubs..."
               TOKEN=\$(az account get-access-token \
                 --resource "https://${EVENTHUBS_NAMESPACE}.servicebus.windows.net" \
-                --query accessToken -o tsv 2>/dev/null)
+                --query accessToken -o tsv)
 
               if [ -z "\$TOKEN" ]; then
                 echo "ERROR: Failed to get Azure AD token"
