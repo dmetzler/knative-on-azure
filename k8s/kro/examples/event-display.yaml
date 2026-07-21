@@ -11,12 +11,15 @@ spec:
         image: gcr.io/knative-releases/knative.dev/eventing/cmd/event_display
         ports:
           - containerPort: 8080
-  servicePort: 8080
-  scalingType: knative
-  minScale: 0
-  maxScale: 5
-  concurrency: 50
-  ingress: false
-  eventingSink: true
-  eventingSource: false
-  allowFrom: []
+  service:
+    port: 8080
+  scaling:
+    type: knative
+    minScale: 0
+    maxScale: 5
+    concurrency: 50
+  security:
+    ingress: false
+    eventingSink: true
+    eventingSource: false
+    allowFrom: []

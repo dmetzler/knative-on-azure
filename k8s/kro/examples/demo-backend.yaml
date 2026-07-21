@@ -21,11 +21,14 @@ spec:
           limits:
             cpu: 500m
             memory: 256Mi
-  servicePort: 8000
-  serviceType: ClusterIP
-  scalingType: static
-  ingress: false
-  eventingSink: true
-  eventingSource: true
-  allowFrom:
-    - demo-frontend
+  service:
+    port: 8000
+    type: ClusterIP
+  scaling:
+    type: static
+  security:
+    ingress: false
+    eventingSink: true
+    eventingSource: true
+    allowFrom:
+      - demo-frontend

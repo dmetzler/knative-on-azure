@@ -11,10 +11,13 @@ spec:
         image: acrknativelab.azurecr.io/demo-frontend:latest
         ports:
           - containerPort: 80
-  servicePort: 80
-  serviceType: LoadBalancer
-  scalingType: static
-  ingress: true
-  eventingSink: false
-  eventingSource: false
-  allowFrom: []
+  service:
+    port: 80
+    type: LoadBalancer
+  scaling:
+    type: static
+  security:
+    ingress: true
+    eventingSink: false
+    eventingSource: false
+    allowFrom: []

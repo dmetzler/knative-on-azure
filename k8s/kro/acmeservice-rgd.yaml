@@ -8,21 +8,27 @@ spec:
     kind: AcmeService
     group: platform.acme.com
     spec:
-      # PodTemplate-style spec (uses object for flexibility)
+      # PodTemplate-style spec (unstructured for flexibility)
       template: object | required=true
-      # Service config
-      servicePort: integer | required=true
-      serviceType: string | default="ClusterIP"
-      # Scaling
-      scalingType: string | default="knative"
-      minScale: integer | default=0
-      maxScale: integer | default=10
-      concurrency: integer | default=100
-      # Security
-      ingress: boolean | default=false
-      eventingSink: boolean | default=false
-      eventingSource: boolean | default=false
-      allowFrom: "[]string"
+
+      # Service exposure
+      service:
+        port: integer | required=true
+        type: string | default="ClusterIP"
+
+      # Scaling configuration
+      scaling:
+        type: string | default="knative"
+        minScale: integer | default=0
+        maxScale: integer | default=10
+        concurrency: integer | default=100
+
+      # Security posture
+      security:
+        ingress: boolean | default=false
+        eventingSink: boolean | default=false
+        eventingSource: boolean | default=false
+        allowFrom: "[]string"
 
   resources:
     # --- ServiceAccount (unique identity per service) ---
@@ -40,7 +46,7 @@ spec:
 
     - id: deployment
       includeWhen:
-        - ${schema.spec.scalingType == "static"}
+        - ${schema.spec.scaling.type == "static"}
       template:
         apiVersion: apps/v1
         kind: Deployment
@@ -62,7 +68,7 @@ spec:
 
     - id: service
       includeWhen:
-        - ${schema.spec.scalingType == "static"}
+        - ${schema.spec.scaling.type == "static"}
       template:
         apiVersion: v1
         kind: Service
@@ -70,12 +76,12 @@ spec:
           name: ${schema.metadata.name}
           namespace: ${schema.metadata.namespace}
         spec:
-          type: ${schema.spec.serviceType}
+          type: ${schema.spec.service.type}
           selector:
             app: ${schema.metadata.name}
           ports:
-            - port: ${schema.spec.servicePort}
-              targetPort: ${schema.spec.servicePort}
+            - port: ${schema.spec.service.port}
+              targetPort: ${schema.spec.service.port}
 
     # =============================================
     # KNATIVE mode: KNative Service (ksvc)
@@ -83,7 +89,7 @@ spec:
 
     - id: ksvc
       includeWhen:
-        - ${schema.spec.scalingType == "knative"}
+        - ${schema.spec.scaling.type == "knative"}
       template:
         apiVersion: serving.knative.dev/v1
         kind: Service
@@ -96,12 +102,12 @@ spec:
               labels:
                 app: ${schema.metadata.name}
               annotations:
-                autoscaling.knative.dev/minScale: ${string(schema.spec.minScale)}
-                autoscaling.knative.dev/maxScale: ${string(schema.spec.maxScale)}
-                autoscaling.knative.dev/target: ${string(schema.spec.concurrency)}
+                autoscaling.knative.dev/minScale: ${string(schema.spec.scaling.minScale)}
+                autoscaling.knative.dev/maxScale: ${string(schema.spec.scaling.maxScale)}
+                autoscaling.knative.dev/target: ${string(schema.spec.scaling.concurrency)}
             spec:
               serviceAccountName: ${schema.metadata.name}
-              containerConcurrency: ${schema.spec.concurrency}
+              containerConcurrency: ${schema.spec.scaling.concurrency}
               containers: ${schema.spec.template.containers}
 
     # =============================================
@@ -126,7 +132,7 @@ spec:
     # Allow KNative eventing/serving/kourier (if eventingSink)
     - id: netpol-eventing
       includeWhen:
-        - ${schema.spec.eventingSink}
+        - ${schema.spec.security.eventingSink}
       template:
         apiVersion: networking.k8s.io/v1
         kind: NetworkPolicy
@@ -152,7 +158,7 @@ spec:
                       kubernetes.io/metadata.name: kourier-system
               ports:
                 - protocol: TCP
-                  port: ${schema.spec.servicePort}
+                  port: ${schema.spec.service.port}
                 - protocol: TCP
                   port: 8012
                 - protocol: TCP
@@ -165,7 +171,7 @@ spec:
     # Allow external ingress (if ingress)
     - id: netpol-ingress
       includeWhen:
-        - ${schema.spec.ingress}
+        - ${schema.spec.security.ingress}
       template:
         apiVersion: networking.k8s.io/v1
         kind: NetworkPolicy
@@ -181,12 +187,12 @@ spec:
           ingress:
             - ports:
                 - protocol: TCP
-                  port: ${schema.spec.servicePort}
+                  port: ${schema.spec.service.port}
 
     # Allow from specific services (collection)
     - id: netpol-allow-from
       forEach:
-        - svc: ${schema.spec.allowFrom}
+        - svc: ${schema.spec.security.allowFrom}
       template:
         apiVersion: networking.k8s.io/v1
         kind: NetworkPolicy
@@ -206,7 +212,7 @@ spec:
                       app: ${svc}
               ports:
                 - protocol: TCP
-                  port: ${schema.spec.servicePort}
+                  port: ${schema.spec.service.port}
 
     # =============================================
     # Security: Istio AuthorizationPolicies
@@ -215,7 +221,7 @@ spec:
     # Allow KNative eventing (if eventingSink)
     - id: authz-eventing
       includeWhen:
-        - ${schema.spec.eventingSink}
+        - ${schema.spec.security.eventingSink}
       template:
         apiVersion: security.istio.io/v1
         kind: AuthorizationPolicy
@@ -238,7 +244,7 @@ spec:
     # Allow external (if ingress)
     - id: authz-ingress
       includeWhen:
-        - ${schema.spec.ingress}
+        - ${schema.spec.security.ingress}
       template:
         apiVersion: security.istio.io/v1
         kind: AuthorizationPolicy
@@ -256,7 +262,7 @@ spec:
     # Allow from specific services (collection)
     - id: authz-allow-from
       forEach:
-        - svc: ${schema.spec.allowFrom}
+        - svc: ${schema.spec.security.allowFrom}
       template:
         apiVersion: security.istio.io/v1
         kind: AuthorizationPolicy
