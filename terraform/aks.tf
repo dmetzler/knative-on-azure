@@ -32,6 +32,11 @@ resource "azurerm_kubernetes_cluster" "main" {
   oidc_issuer_enabled       = true
   workload_identity_enabled = true
 
+  service_mesh_profile {
+    mode      = "Istio"
+    revisions = ["asm-1-24"]
+  }
+
   tags = {
     environment = "lab"
     project     = "knative-eventing"
