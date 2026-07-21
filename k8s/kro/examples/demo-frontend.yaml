@@ -1,0 +1,26 @@
+# Example: demo-frontend as AcmeService
+apiVersion: platform.acme.com/v1alpha1
+kind: AcmeService
+metadata:
+  name: demo-frontend
+  namespace: default
+spec:
+  template:
+    metadata:
+      labels:
+        app: demo-frontend
+      annotations: {}
+    spec:
+      containers:
+        - name: frontend
+          image: acrknativelab.azurecr.io/demo-frontend:latest
+          ports:
+            - containerPort: 80
+  service:
+    port: 80
+    type: ClusterIP
+  security:
+    ingress: true
+    eventingSink: false
+    eventingSource: false
+    allowFrom: []

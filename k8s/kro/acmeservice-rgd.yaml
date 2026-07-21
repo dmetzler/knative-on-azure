@@ -1,0 +1,192 @@
+apiVersion: kro.run/v1alpha1
+kind: ResourceGraphDefinition
+metadata:
+  name: acmeservice
+spec:
+  schema:
+    apiVersion: platform.acme.com/v1alpha1
+    kind: AcmeService
+    spec:
+      template:
+        metadata:
+          labels:
+            type: object
+            additionalProperties:
+              type: string
+          annotations:
+            type: object
+            additionalProperties:
+              type: string
+        spec:
+          type: object
+          x-kubernetes-preserve-unknown-fields: true
+      service:
+        port:
+          type: integer
+        type:
+          type: string
+          default: ClusterIP
+      security:
+        ingress:
+          type: boolean
+          default: false
+        eventingSink:
+          type: boolean
+          default: false
+        eventingSource:
+          type: boolean
+          default: false
+        allowFrom:
+          type: array
+          items:
+            type: string
+          default: []
+
+  resources:
+    # --- ServiceAccount (unique identity per service) ---
+    - id: serviceaccount
+      template:
+        apiVersion: v1
+        kind: ServiceAccount
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+
+    # --- Deployment ---
+    - id: deployment
+      template:
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+          labels: ${schema.spec.template.metadata.labels}
+        spec:
+          replicas: 1
+          selector:
+            matchLabels: ${schema.spec.template.metadata.labels}
+          template:
+            metadata:
+              labels: ${schema.spec.template.metadata.labels}
+              annotations: ${schema.spec.template.metadata.annotations}
+            spec:
+              serviceAccountName: ${schema.metadata.name}
+              containers: ${schema.spec.template.spec.containers}
+
+    # --- Service ---
+    - id: service
+      template:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+        spec:
+          type: ${schema.spec.service.type}
+          selector: ${schema.spec.template.metadata.labels}
+          ports:
+            - port: ${schema.spec.service.port}
+              targetPort: ${schema.spec.service.port}
+
+    # --- NetworkPolicy: default deny ingress on this pod ---
+    - id: netpol-deny
+      template:
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: ${schema.metadata.name}-deny-ingress
+          namespace: ${schema.metadata.namespace}
+        spec:
+          podSelector:
+            matchLabels: ${schema.spec.template.metadata.labels}
+          policyTypes:
+            - Ingress
+
+    # --- NetworkPolicy: allow from KNative eventing (if eventingSink) ---
+    - id: netpol-eventing
+      includeWhen:
+        - ${schema.spec.security.eventingSink}
+      template:
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: ${schema.metadata.name}-allow-eventing
+          namespace: ${schema.metadata.namespace}
+        spec:
+          podSelector:
+            matchLabels: ${schema.spec.template.metadata.labels}
+          policyTypes:
+            - Ingress
+          ingress:
+            - from:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: knative-eventing
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: knative-serving
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: kourier-system
+              ports:
+                - protocol: TCP
+                  port: ${schema.spec.service.port}
+
+    # --- NetworkPolicy: allow external ingress (if ingress) ---
+    - id: netpol-ingress
+      includeWhen:
+        - ${schema.spec.security.ingress}
+      template:
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: ${schema.metadata.name}-allow-ingress
+          namespace: ${schema.metadata.namespace}
+        spec:
+          podSelector:
+            matchLabels: ${schema.spec.template.metadata.labels}
+          policyTypes:
+            - Ingress
+          ingress:
+            - ports:
+                - protocol: TCP
+                  port: ${schema.spec.service.port}
+
+    # --- AuthorizationPolicy: allow KNative eventing (if eventingSink) ---
+    - id: authz-eventing
+      includeWhen:
+        - ${schema.spec.security.eventingSink}
+      template:
+        apiVersion: security.istio.io/v1
+        kind: AuthorizationPolicy
+        metadata:
+          name: ${schema.metadata.name}-allow-eventing
+          namespace: ${schema.metadata.namespace}
+        spec:
+          selector:
+            matchLabels: ${schema.spec.template.metadata.labels}
+          action: ALLOW
+          rules:
+            - from:
+                - source:
+                    namespaces:
+                      - knative-eventing
+                      - knative-serving
+                      - kourier-system
+
+    # --- AuthorizationPolicy: allow external (if ingress) ---
+    - id: authz-ingress
+      includeWhen:
+        - ${schema.spec.security.ingress}
+      template:
+        apiVersion: security.istio.io/v1
+        kind: AuthorizationPolicy
+        metadata:
+          name: ${schema.metadata.name}-allow-ingress
+          namespace: ${schema.metadata.namespace}
+        spec:
+          selector:
+            matchLabels: ${schema.spec.template.metadata.labels}
+          action: ALLOW
+          rules:
+            - {}
