@@ -32,7 +32,7 @@ spec:
 
   resources:
     # --- ServiceAccount (unique identity per service) ---
-    - id: serviceaccount
+    - id: serviceAccount
       template:
         apiVersion: v1
         kind: ServiceAccount
@@ -115,7 +115,7 @@ spec:
     # =============================================
 
     # Default deny ingress on this pod
-    - id: netpol-deny
+    - id: netpolDeny
       template:
         apiVersion: networking.k8s.io/v1
         kind: NetworkPolicy
@@ -130,7 +130,7 @@ spec:
             - Ingress
 
     # Allow KNative eventing/serving/kourier (if eventingSink)
-    - id: netpol-eventing
+    - id: netpolEventing
       includeWhen:
         - ${schema.spec.security.eventingSink}
       template:
@@ -169,7 +169,7 @@ spec:
                   port: 8443
 
     # Allow external ingress (if ingress)
-    - id: netpol-ingress
+    - id: netpolIngress
       includeWhen:
         - ${schema.spec.security.ingress}
       template:
@@ -190,7 +190,7 @@ spec:
                   port: ${schema.spec.service.port}
 
     # Allow from specific services (collection)
-    - id: netpol-allow-from
+    - id: netpolAllowFrom
       forEach:
         - svc: ${schema.spec.security.allowFrom}
       template:
@@ -219,7 +219,7 @@ spec:
     # =============================================
 
     # Allow KNative eventing (if eventingSink)
-    - id: authz-eventing
+    - id: authzEventing
       includeWhen:
         - ${schema.spec.security.eventingSink}
       template:
@@ -242,7 +242,7 @@ spec:
                       - kourier-system
 
     # Allow external (if ingress)
-    - id: authz-ingress
+    - id: authzIngress
       includeWhen:
         - ${schema.spec.security.ingress}
       template:
@@ -260,7 +260,7 @@ spec:
             - {}
 
     # Allow from specific services (collection)
-    - id: authz-allow-from
+    - id: authzAllowFrom
       forEach:
         - svc: ${schema.spec.security.allowFrom}
       template:
