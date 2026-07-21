@@ -1,4 +1,5 @@
 # Broker → ASB: receives CloudEvents from KNative Broker, forwards to Service Bus queue
+# Serializes the full CloudEvent (headers + body) as structured JSON (application/cloudevents+json)
 - from:
     uri: "knative:event/asb.outbound"
     parameters:
@@ -6,7 +7,16 @@
       name: default
     steps:
       - log:
-          message: "Forwarding event to ASB: ${body}"
+          message: "Forwarding CloudEvent to ASB: type=${header.ce-type}, source=${header.ce-source}, id=${header.ce-id}"
+      - marshal:
+          json:
+            library: jackson
+      - setBody:
+          simple: |
+            {"specversion":"${header.ce-specversion}","type":"${header.ce-type}","source":"${header.ce-source}","id":"${header.ce-id}","time":"${header.ce-time}","datacontenttype":"application/json","data":${body}}
+      - setHeader:
+          name: "ContentType"
+          constant: "application/cloudevents+json"
       - to:
           uri: "azure-servicebus:{{asb.queue.outbound}}"
           parameters:
