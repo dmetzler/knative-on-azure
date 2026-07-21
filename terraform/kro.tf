@@ -2,6 +2,7 @@
 resource "helm_release" "kro" {
   name             = "kro"
   chart            = "oci://registry.k8s.io/kro/charts/kro"
+  version          = "0.9.2"
   namespace        = "kro-system"
   create_namespace = true
 
