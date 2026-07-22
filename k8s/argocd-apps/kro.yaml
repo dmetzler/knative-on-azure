@@ -1,0 +1,21 @@
+# KRO (Kubernetes Resource Orchestrator)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kro
+  namespace: argocd
+spec:
+  project: default
+  source:
+    chart: kro
+    repoURL: registry.k8s.io/kro/charts
+    targetRevision: 0.9.2
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kro-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

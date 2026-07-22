@@ -1,0 +1,16 @@
+# Allow external traffic to demo-frontend (LoadBalancer)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-ingress
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: demo-frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 80

@@ -1,0 +1,20 @@
+# Allow frontend to reach backend API
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-backend
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: demo-backend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: demo-frontend
+      ports:
+        - protocol: TCP
+          port: 8000

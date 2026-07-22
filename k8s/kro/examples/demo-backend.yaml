@@ -1,0 +1,34 @@
+# demo-backend: receives events, called by frontend
+apiVersion: platform.acme.com/v1alpha1
+kind: AcmeService
+metadata:
+  name: demo-backend
+  namespace: default
+spec:
+  template:
+    containers:
+      - name: backend
+        image: acrknativelab.azurecr.io/demo-backend:latest
+        ports:
+          - containerPort: 8000
+        env:
+          - name: BROKER_URL
+            value: "http://kafka-broker-ingress.knative-eventing.svc.cluster.local/default/default"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+  service:
+    port: 8000
+    type: ClusterIP
+  scaling:
+    type: static
+  security:
+    ingress: false
+    eventingSink: true
+    eventingSource: true
+    allowFrom:
+      - demo-frontend

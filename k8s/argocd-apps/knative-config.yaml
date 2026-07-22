@@ -1,0 +1,21 @@
+# KNative eventing configuration managed by ArgoCD
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: knative-config
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/dmetzler/knative-on-azure.git
+    targetRevision: feature/gitops-argocd
+    path: k8s/knative
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: knative-eventing
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,5 +1,6 @@
 # Broker → ASB: subscribes to events matching type 'asb.outbound'
 # from the Kafka Broker and forwards them to Service Bus queue 'knative-outbound'.
+# Serializes the full CloudEvent (structured JSON) before sending.
 apiVersion: camel.apache.org/v1
 kind: Integration
 metadata:
@@ -21,7 +22,21 @@ spec:
               name: default
             steps:
               - log:
-                  message: "Forwarding event to ASB: ${body}"
+                  message: "Forwarding CloudEvent to ASB: type=${header.CamelCloudEventType}, source=${header.CamelCloudEventSource}, id=${header.CamelCloudEventID}"
+              - convertBodyTo:
+                  type: "java.lang.String"
+              # Ensure specversion has a default (KNative sometimes omits it)
+              - setHeader:
+                  name: CamelCloudEventSpecVersion
+                  simple: "${header.CamelCloudEventSpecVersion:1.0}"
+              - setHeader:
+                  name: CamelCloudEventTime
+                  simple: "${header.CamelCloudEventTime:${date:now:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'}}"
+              - setBody:
+                  simple: '{"specversion":"${header.CamelCloudEventSpecVersion}","type":"${header.CamelCloudEventType}","source":"${header.CamelCloudEventSource}","id":"${header.CamelCloudEventID}","time":"${header.CamelCloudEventTime}","datacontenttype":"application/json","data":${body}}'
+              - setHeader:
+                  name: "ContentType"
+                  constant: "application/cloudevents+json"
               - to:
                   uri: "azure-servicebus:knative-outbound"
                   parameters:

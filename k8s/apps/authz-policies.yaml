@@ -1,0 +1,85 @@
+# Default deny all traffic in default namespace (Istio L7)
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: default-deny
+  namespace: default
+spec: {}
+---
+# Allow KNative Eventing dispatcher to deliver events
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-knative-eventing
+  namespace: default
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces:
+              - knative-eventing
+---
+# Allow Kourier and KNative Serving (activator, controller)
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-knative-serving
+  namespace: default
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces:
+              - knative-serving
+              - kourier-system
+---
+# Allow frontend to call backend and jupyter
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-frontend-to-backend
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: demo-backend
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/default/sa/default
+---
+# Allow frontend to be accessed externally (LoadBalancer, no mTLS)
+# With STRICT mTLS, external traffic has no identity — we must allow it explicitly
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-frontend-external
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: demo-frontend
+  action: ALLOW
+  rules:
+    - {}
+---
+# Allow frontend to reach jupyter
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-frontend-to-jupyter
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: demo-jupyter
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/default/sa/default

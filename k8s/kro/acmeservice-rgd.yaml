@@ -1,0 +1,285 @@
+apiVersion: kro.run/v1alpha1
+kind: ResourceGraphDefinition
+metadata:
+  name: acmeservice
+spec:
+  schema:
+    apiVersion: v1alpha1
+    kind: AcmeService
+    group: platform.acme.com
+    spec:
+      # PodTemplate-style spec (unstructured for flexibility)
+      template: object | required=true
+
+      # Service exposure
+      service:
+        port: integer | required=true
+        type: string | default="ClusterIP"
+
+      # Scaling configuration
+      scaling:
+        type: string | default="knative"
+        minScale: integer | default=0
+        maxScale: integer | default=10
+        concurrency: integer | default=100
+
+      # Security posture
+      security:
+        ingress: boolean | default=false
+        eventingSink: boolean | default=false
+        eventingSource: boolean | default=false
+        allowFrom: "[]string"
+
+  resources:
+    # --- ServiceAccount (unique identity per service) ---
+    - id: serviceAccount
+      template:
+        apiVersion: v1
+        kind: ServiceAccount
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+
+    # =============================================
+    # STATIC mode: Deployment + Service
+    # =============================================
+
+    - id: deployment
+      includeWhen:
+        - ${schema.spec.scaling.type == "static"}
+      template:
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: ${schema.metadata.name}
+          template:
+            metadata:
+              labels:
+                app: ${schema.metadata.name}
+            spec:
+              serviceAccountName: ${schema.metadata.name}
+              containers: ${schema.spec.template.containers}
+
+    - id: service
+      includeWhen:
+        - ${schema.spec.scaling.type == "static"}
+      template:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+        spec:
+          type: ${schema.spec.service.type}
+          selector:
+            app: ${schema.metadata.name}
+          ports:
+            - port: ${schema.spec.service.port}
+              targetPort: ${schema.spec.service.port}
+
+    # =============================================
+    # KNATIVE mode: KNative Service (ksvc)
+    # =============================================
+
+    - id: ksvc
+      includeWhen:
+        - ${schema.spec.scaling.type == "knative"}
+      template:
+        apiVersion: serving.knative.dev/v1
+        kind: Service
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+        spec:
+          template:
+            metadata:
+              labels:
+                app: ${schema.metadata.name}
+              annotations:
+                autoscaling.knative.dev/minScale: ${string(schema.spec.scaling.minScale)}
+                autoscaling.knative.dev/maxScale: ${string(schema.spec.scaling.maxScale)}
+                autoscaling.knative.dev/target: ${string(schema.spec.scaling.concurrency)}
+            spec:
+              serviceAccountName: ${schema.metadata.name}
+              containerConcurrency: ${schema.spec.scaling.concurrency}
+              containers: ${schema.spec.template.containers}
+
+    # =============================================
+    # Security: NetworkPolicies
+    # =============================================
+
+    # Default deny ingress on this pod
+    - id: netpolDeny
+      template:
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: ${schema.metadata.name}-deny-ingress
+          namespace: ${schema.metadata.namespace}
+        spec:
+          podSelector:
+            matchLabels:
+              app: ${schema.metadata.name}
+          policyTypes:
+            - Ingress
+
+    # Allow KNative eventing/serving/kourier (if eventingSink)
+    - id: netpolEventing
+      includeWhen:
+        - ${schema.spec.security.eventingSink}
+      template:
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: ${schema.metadata.name}-allow-eventing
+          namespace: ${schema.metadata.namespace}
+        spec:
+          podSelector:
+            matchLabels:
+              app: ${schema.metadata.name}
+          policyTypes:
+            - Ingress
+          ingress:
+            - from:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: knative-eventing
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: knative-serving
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: kourier-system
+              ports:
+                - protocol: TCP
+                  port: ${schema.spec.service.port}
+                - protocol: TCP
+                  port: 8012
+                - protocol: TCP
+                  port: 8013
+                - protocol: TCP
+                  port: 8080
+                - protocol: TCP
+                  port: 8443
+                - protocol: TCP
+                  port: 9090
+                - protocol: TCP
+                  port: 9091
+
+    # Allow external ingress (if ingress)
+    - id: netpolIngress
+      includeWhen:
+        - ${schema.spec.security.ingress}
+      template:
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: ${schema.metadata.name}-allow-ingress
+          namespace: ${schema.metadata.namespace}
+        spec:
+          podSelector:
+            matchLabels:
+              app: ${schema.metadata.name}
+          policyTypes:
+            - Ingress
+          ingress:
+            - ports:
+                - protocol: TCP
+                  port: ${schema.spec.service.port}
+
+    # Allow from specific services (collection)
+    - id: netpolAllowFrom
+      forEach:
+        - svc: ${schema.spec.security.allowFrom}
+      template:
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: ${schema.metadata.name}-allow-from-${svc}
+          namespace: ${schema.metadata.namespace}
+        spec:
+          podSelector:
+            matchLabels:
+              app: ${schema.metadata.name}
+          policyTypes:
+            - Ingress
+          ingress:
+            - from:
+                - podSelector:
+                    matchLabels:
+                      app: ${svc}
+              ports:
+                - protocol: TCP
+                  port: ${schema.spec.service.port}
+
+    # =============================================
+    # Security: Istio AuthorizationPolicies
+    # =============================================
+
+    # Allow KNative eventing (if eventingSink)
+    - id: authzEventing
+      includeWhen:
+        - ${schema.spec.security.eventingSink}
+      template:
+        apiVersion: security.istio.io/v1
+        kind: AuthorizationPolicy
+        metadata:
+          name: ${schema.metadata.name}-allow-eventing
+          namespace: ${schema.metadata.namespace}
+        spec:
+          selector:
+            matchLabels:
+              app: ${schema.metadata.name}
+          action: ALLOW
+          rules:
+            - from:
+                - source:
+                    namespaces:
+                      - knative-eventing
+                      - knative-serving
+                      - kourier-system
+
+    # Allow external (if ingress)
+    - id: authzIngress
+      includeWhen:
+        - ${schema.spec.security.ingress}
+      template:
+        apiVersion: security.istio.io/v1
+        kind: AuthorizationPolicy
+        metadata:
+          name: ${schema.metadata.name}-allow-ingress
+          namespace: ${schema.metadata.namespace}
+        spec:
+          selector:
+            matchLabels:
+              app: ${schema.metadata.name}
+          action: ALLOW
+          rules:
+            - {}
+
+    # Allow from specific services (collection)
+    - id: authzAllowFrom
+      forEach:
+        - svc: ${schema.spec.security.allowFrom}
+      template:
+        apiVersion: security.istio.io/v1
+        kind: AuthorizationPolicy
+        metadata:
+          name: ${schema.metadata.name}-allow-from-${svc}
+          namespace: ${schema.metadata.namespace}
+        spec:
+          selector:
+            matchLabels:
+              app: ${schema.metadata.name}
+          action: ALLOW
+          rules:
+            - from:
+                - source:
+                    principals:
+                      - cluster.local/ns/${schema.metadata.namespace}/sa/${svc}

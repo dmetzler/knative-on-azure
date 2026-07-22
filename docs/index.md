@@ -1,53 +1,53 @@
-# KNative on Azure
+# KNative on Azure — Platform Engineering POC
 
-A complete Infrastructure-as-Code lab deploying **KNative Serving & Eventing** on **Azure Kubernetes Service (AKS)**, with the KNative Kafka Broker backed by **Azure Event Hubs** in Kafka compatibility mode.
+A proof-of-concept demonstrating how to build a **developer platform on AKS** where security is automatic, not optional.
 
-## What You'll Get
+## The Pitch
 
-| Component | Details |
+A developer writes **one YAML file** describing their service. The platform generates all the security and networking configuration — NetworkPolicies, Istio AuthorizationPolicies, mTLS, service accounts — automatically.
+
+**The secure path is the easy path.**
+
+## What's Inside
+
+| Component | Purpose |
 |-----------|---------|
-| **AKS Cluster** | Kubernetes 1.36.1, 2× Standard_D4s_v5, Azure CNI overlay |
+| **AKS Cluster** | Kubernetes 1.36.1, Azure CNI overlay, 2× Standard_D4s_v5 |
 | **KNative Serving** | Scale-to-zero serverless workloads with Kourier ingress |
 | **KNative Eventing** | CloudEvents routing with Kafka Broker |
-| **Azure Event Hubs** | Kafka-compatible event backbone (Standard tier) |
-| **Demo apps** | hello-knative (Serving) + event-display (Eventing sink) |
+| **Azure Event Hubs** | Kafka-compatible event backbone |
+| **Istio** (AKS addon) | mTLS service mesh, L7 AuthorizationPolicies |
+| **KRO** | Platform abstraction — generates resources from `AcmeService` CRD |
+| **ArgoCD** | GitOps — every change goes through Git |
+| **DAPR** | Distributed application runtime (sidecar for state, pubsub) |
 
-## Why Event Hubs + Kafka Mode?
+## Key Concepts
 
-Azure Event Hubs natively exposes a **Kafka-compatible endpoint** on Standard/Premium tiers. This means:
-
-- **No adapter needed** — KNative's mature Kafka Broker speaks directly to Event Hubs
-- **Portable** — swap to a real Kafka cluster (Confluent, Strimzi) without changing manifests
-- **Battle-tested** — the KNative Kafka Broker is used in production by Red Hat OpenShift Serverless
+- [Architecture](architecture.md) — Infrastructure layout and event flow
+- [Security Model](security.md) — Two-layer defense: NetworkPolicy + Istio
+- [AcmeService](acmeservice.md) — Platform CRD powered by KRO
+- [GitOps](gitops.md) — ArgoCD app-of-apps pattern
 
 ## Quick Start
 
 ```bash
 # 1. Deploy infrastructure
-cd terraform
-cp terraform.tfvars.example terraform.tfvars  # add your subscription_id
-terraform init && terraform apply
+cd terraform && terraform apply
 
 # 2. Connect to AKS
 az aks get-credentials --resource-group rg-knative-lab --name aks-knative-lab
 
 # 3. Install KNative
 ./scripts/install-knative.sh
-./scripts/reinstall-kafka-components.sh  # fix v1.22.1 manifest bugs
 
-# 4. Wire Event Hubs as Kafka Broker
-./scripts/setup-kafka-broker.sh
+# 4. Bootstrap ArgoCD (once)
+kubectl apply -f k8s/root-app.yaml
 
-# 5. Deploy demo apps
-kubectl apply -f k8s/demo/
-
-# 6. Test!
-kubectl run curl --image=curlimages/curl --rm -it --restart=Never -- \
-  -X POST http://kafka-broker-ingress.knative-eventing.svc.cluster.local/default/default \
-  -H 'Ce-Id: test-1' -H 'Ce-Specversion: 1.0' \
-  -H 'Ce-Type: dev.knative.test' -H 'Ce-Source: /test' \
-  -H 'Content-Type: application/json' \
-  -d '{"msg": "Hello from Event Hubs!"}'
+# 5. Enable Istio + mTLS
+for ns in default knative-serving knative-eventing kourier-system; do
+  kubectl label namespace $ns istio.io/rev=asm-1-29
+done
+kubectl apply -f k8s/istio/peer-authentication-knative.yaml
 ```
 
 See the [Deployment Guide](deploy/01-infrastructure.md) for detailed step-by-step instructions.

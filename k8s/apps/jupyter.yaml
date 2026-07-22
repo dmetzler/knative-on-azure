@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-jupyter
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-jupyter
+  template:
+    metadata:
+      labels:
+        app: demo-jupyter
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "jupyter"
+        dapr.io/app-port: "8888"
+    spec:
+      containers:
+        - name: jupyter
+          image: acrknativelab.azurecr.io/demo-jupyter:latest
+          ports:
+            - containerPort: 8888
+          env:
+            - name: BROKER_URL
+              value: "http://kafka-broker-ingress.knative-eventing.svc.cluster.local/default/default"
+            - name: DAPR_PUBSUB_NAME
+              value: "messaging"
+            - name: DAPR_HTTP_PORT
+              value: "3500"
+            # Keep legacy connection string for now, remove after migration
+            - name: AZURE_SERVICEBUS_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  key: connectionString
+                  name: azure-servicebus-demo

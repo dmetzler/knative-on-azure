@@ -1,0 +1,11 @@
+# Kafka broker config - referenced by KNative Kafka Broker
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-broker-config
+  namespace: knative-eventing
+data:
+  default.topic.partitions: "2"
+  default.topic.replication.factor: "1"
+  bootstrap.servers: evhns-knative-lab.servicebus.windows.net:9093
+  auth.secret.ref.name: kafka-auth-secret

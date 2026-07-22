@@ -1,0 +1,15 @@
+# DAPR Pub/Sub component backed by Azure Service Bus
+# Uses kubelet Managed Identity for authentication (no connection strings)
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messaging
+  namespace: default
+spec:
+  type: pubsub.azure.servicebus.queues
+  version: v1
+  metadata:
+    - name: namespaceName
+      value: "sbns-knative-lab.servicebus.windows.net"
+    - name: azureClientId
+      value: "271f12b4-c2fd-4ff6-b5c4-ff5ce8606ad4"

@@ -1,0 +1,23 @@
+# demo-frontend: external-facing UI
+apiVersion: platform.acme.com/v1alpha1
+kind: AcmeService
+metadata:
+  name: demo-frontend
+  namespace: default
+spec:
+  template:
+    containers:
+      - name: frontend
+        image: acrknativelab.azurecr.io/demo-frontend:latest
+        ports:
+          - containerPort: 80
+  service:
+    port: 80
+    type: LoadBalancer
+  scaling:
+    type: static
+  security:
+    ingress: true
+    eventingSink: false
+    eventingSource: false
+    allowFrom: []

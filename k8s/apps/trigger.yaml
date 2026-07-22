@@ -1,0 +1,8 @@
+apiVersion: eventing.knative.dev/v1
+kind: Trigger
+metadata:
+  name: demo-backend-trigger
+spec:
+  broker: default
+  subscriber:
+    uri: http://demo-backend.default.svc.cluster.local/events/
