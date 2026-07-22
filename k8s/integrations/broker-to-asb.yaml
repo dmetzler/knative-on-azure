@@ -29,9 +29,13 @@ spec:
               - setHeader:
                   name: CamelCloudEventSpecVersion
                   simple: "${header.CamelCloudEventSpecVersion:1.0}"
-              - setHeader:
-                  name: CamelCloudEventTime
-                  simple: "${header.CamelCloudEventTime:${date:now:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'}}"
+              - choice:
+                  when:
+                    - simple: "${header.CamelCloudEventTime} == null || ${header.CamelCloudEventTime} == ''"
+                      steps:
+                        - setHeader:
+                            name: CamelCloudEventTime
+                            simple: "${date:now:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'}"
               - setBody:
                   simple: '{"specversion":"${header.CamelCloudEventSpecVersion}","type":"${header.CamelCloudEventType}","source":"${header.CamelCloudEventSource}","id":"${header.CamelCloudEventID}","time":"${header.CamelCloudEventTime}","datacontenttype":"application/json","data":${body}}'
               - setHeader:
