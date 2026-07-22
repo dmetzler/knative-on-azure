@@ -188,7 +188,7 @@ class MessageBus:
             raise RuntimeError(
                 "MessageBus has no transport configured. Call bus.configure(transport) at startup."
             )
-        await self._transport.publish(topic or event.type, event, options)
+        await self._transport.publish(topic, event, options)
 
     # -- Router (for mounting in FastAPI) ------------------------------------
 
