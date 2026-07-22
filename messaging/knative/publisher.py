@@ -56,10 +56,10 @@ class KNativeEventingPublisher:
         """
         opts = options or PublishOptions()
 
-        if event.subject is None:
-            event.subject = topic
-
+        # Build headers without mutating the original event
         headers = event.to_headers()
+        if event.subject is None and topic:
+            headers["ce-subject"] = topic
         headers.update(opts.headers)
 
         body: bytes
