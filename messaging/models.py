@@ -50,6 +50,50 @@ class CloudEvent:
             headers[f"ce-{k}"] = v
         return headers
 
+    def to_structured(self) -> dict[str, Any]:
+        """Serialize as structured CloudEvent JSON (application/cloudevents+json).
+
+        Produces a deterministic dict suitable for ``json.dumps``.  Both
+        KNative and DAPR transports use this to guarantee identical wire
+        format.
+        """
+        ce: dict[str, Any] = {
+            "specversion": self.specversion,
+            "type": self.type,
+            "source": self.source,
+            "id": self.id,
+            "time": self.time,
+            "datacontenttype": self.datacontenttype,
+        }
+        if self.subject is not None:
+            ce["subject"] = self.subject
+        for k, v in self.extensions.items():
+            ce[k] = v
+        if self.data is not None:
+            ce["data"] = self.data
+        return ce
+
+    @classmethod
+    def from_structured(cls, payload: dict[str, Any]) -> CloudEvent:
+        """Parse a structured CloudEvent JSON dict."""
+        extensions: dict[str, str] = {}
+        known = {"specversion", "type", "source", "id", "time",
+                 "datacontenttype", "subject", "data"}
+        for k, v in payload.items():
+            if k not in known:
+                extensions[k] = v
+        return cls(
+            specversion=payload.get("specversion", "1.0"),
+            type=payload.get("type", ""),
+            source=payload.get("source", ""),
+            id=payload.get("id", str(uuid.uuid4())),
+            time=payload.get("time", datetime.utcnow().isoformat() + "Z"),
+            datacontenttype=payload.get("datacontenttype", "application/json"),
+            subject=payload.get("subject"),
+            data=payload.get("data"),
+            extensions=extensions,
+        )
+
     @classmethod
     def from_headers(cls, headers: dict[str, str], body: Any) -> CloudEvent:
         """Parse a CloudEvent from HTTP headers (binary content mode) and body."""

@@ -1,5 +1,8 @@
 # Broker → ASB: receives CloudEvents from KNative Broker, forwards to Service Bus queue
 # Serializes the full CloudEvent (headers + body) as structured JSON (application/cloudevents+json)
+#
+# Uses CamelCloudEvent* headers (set by Camel-K KNative component) with defaults
+# to handle cases where a header might be missing.
 - from:
     uri: "knative:event/asb.outbound"
     parameters:
@@ -7,13 +10,18 @@
       name: default
     steps:
       - log:
-          message: "Forwarding CloudEvent to ASB: type=${header.ce-type}, source=${header.ce-source}, id=${header.ce-id}"
-      - marshal:
-          json:
-            library: jackson
+          message: "Forwarding CloudEvent to ASB: type=${header.CamelCloudEventType}, source=${header.CamelCloudEventSource}, id=${header.CamelCloudEventID}"
+      - convertBodyTo:
+          type: "java.lang.String"
+      # Ensure required headers have defaults
+      - setHeader:
+          name: CamelCloudEventSpecVersion
+          simple: "${header.CamelCloudEventSpecVersion:1.0}"
+      - setHeader:
+          name: CamelCloudEventTime
+          simple: "${header.CamelCloudEventTime:${date:now:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'}}"
       - setBody:
-          simple: |
-            {"specversion":"${header.ce-specversion}","type":"${header.ce-type}","source":"${header.ce-source}","id":"${header.ce-id}","time":"${header.ce-time}","datacontenttype":"application/json","data":${body}}
+          simple: '{"specversion":"${header.CamelCloudEventSpecVersion}","type":"${header.CamelCloudEventType}","source":"${header.CamelCloudEventSource}","id":"${header.CamelCloudEventID}","time":"${header.CamelCloudEventTime}","datacontenttype":"application/json","data":${body}}'
       - setHeader:
           name: "ContentType"
           constant: "application/cloudevents+json"
