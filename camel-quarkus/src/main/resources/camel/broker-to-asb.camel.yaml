@@ -13,10 +13,14 @@
           message: "Forwarding CloudEvent to ASB: type=${header.CamelCloudEventType}, source=${header.CamelCloudEventSource}, id=${header.CamelCloudEventID}"
       - convertBodyTo:
           type: "java.lang.String"
-      # Ensure required headers have defaults
-      - setHeader:
-          name: CamelCloudEventSpecVersion
-          simple: "${header.CamelCloudEventSpecVersion:1.0}"
+      # Ensure specversion has a default
+      - choice:
+          when:
+            - simple: "${header.CamelCloudEventSpecVersion} == null || ${header.CamelCloudEventSpecVersion} == ''"
+              steps:
+                - setHeader:
+                    name: CamelCloudEventSpecVersion
+                    constant: "1.0"
       - choice:
           when:
             - simple: "${header.CamelCloudEventTime} == null || ${header.CamelCloudEventTime} == ''"
