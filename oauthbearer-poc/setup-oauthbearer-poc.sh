@@ -77,15 +77,15 @@ kubectl label serviceaccount knative-kafka-broker-data-plane \
   --overwrite
 
 echo "=== Patching data-plane deployments with derived images ==="
-# Receiver
+# Receiver (container name = kafka-broker-receiver)
 kubectl set image deployment/kafka-broker-receiver \
   -n knative-eventing \
-  receiver="${RECEIVER_IMG}"
+  kafka-broker-receiver="${RECEIVER_IMG}"
 
-# Dispatcher
+# Dispatcher (container name = kafka-broker-dispatcher)
 kubectl set image statefulset/kafka-broker-dispatcher \
   -n knative-eventing \
-  dispatcher="${DISPATCHER_IMG}"
+  kafka-broker-dispatcher="${DISPATCHER_IMG}"
 
 echo "=== Restarting data-plane to pick up new images + WI injection ==="
 kubectl rollout restart deployment/kafka-broker-receiver -n knative-eventing
