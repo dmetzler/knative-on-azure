@@ -43,6 +43,15 @@ echo ""
 JAAS_CONFIG='org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required;'
 CALLBACK_HANDLER='io.conduktor.kafka.security.oauthbearer.azure.AzureManagedIdentityCallbackHandler'
 
+echo "=== Creating/updating auth secret for OAUTHBEARER ==="
+# Remove the old PLAIN/$aad secret and replace with OAUTHBEARER
+# No user/password needed — the callback handler gets tokens from Workload Identity
+kubectl create secret generic kafka-auth-secret \
+  --namespace knative-eventing \
+  --from-literal=protocol=SASL_SSL \
+  --from-literal=sasl.mechanism=OAUTHBEARER \
+  --dry-run=client -o yaml | kubectl apply -f -
+
 echo "=== Patching config-kafka-broker-data-plane ConfigMap ==="
 # We patch both producer and consumer properties
 cat <<EOF | kubectl apply -f -
