@@ -27,34 +27,40 @@ echo "=== Adding maven-shade-plugin for fat JAR ==="
 cd "$BUILD_DIR"
 
 # Inject shade plugin into the pom.xml before </plugins>
-sed -i '/<\/plugins>/i \
-            <plugin>\
-                <groupId>org.apache.maven.plugins</groupId>\
-                <artifactId>maven-shade-plugin</artifactId>\
-                <version>3.6.0</version>\
-                <executions>\
-                    <execution>\
-                        <phase>package</phase>\
-                        <goals><goal>shade</goal></goals>\
-                        <configuration>\
-                            <createDependencyReducedPom>false</createDependencyReducedPom>\
-                            <filters>\
-                                <filter>\
-                                    <artifact>*:*</artifact>\
-                                    <excludes>\
-                                        <exclude>META-INF/*.SF</exclude>\
-                                        <exclude>META-INF/*.DSA</exclude>\
-                                        <exclude>META-INF/*.RSA</exclude>\
-                                    </excludes>\
-                                </filter>\
-                            </filters>\
-                            <transformers>\
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>\
-                            </transformers>\
-                        </configuration>\
-                    </execution>\
-                </executions>\
-            </plugin>' pom.xml
+# Use python for cross-platform XML manipulation (works on both macOS and Linux)
+python3 -c "
+import xml.etree.ElementTree as ET
+ET.register_namespace('', 'http://maven.apache.org/POM/4.0.0')
+ET.register_namespace('xsi', 'http://www.w3.org/2001/XMLSchema-instance')
+tree = ET.parse('pom.xml')
+ns = {'m': 'http://maven.apache.org/POM/4.0.0'}
+plugins = tree.find('.//m:build/m:plugins', ns)
+shade = ET.fromstring('''<plugin xmlns=\"http://maven.apache.org/POM/4.0.0\">
+  <groupId>org.apache.maven.plugins</groupId>
+  <artifactId>maven-shade-plugin</artifactId>
+  <version>3.6.0</version>
+  <executions><execution>
+    <phase>package</phase>
+    <goals><goal>shade</goal></goals>
+    <configuration>
+      <createDependencyReducedPom>false</createDependencyReducedPom>
+      <filters><filter>
+        <artifact>*:*</artifact>
+        <excludes>
+          <exclude>META-INF/*.SF</exclude>
+          <exclude>META-INF/*.DSA</exclude>
+          <exclude>META-INF/*.RSA</exclude>
+        </excludes>
+      </filter></filters>
+      <transformers>
+        <transformer implementation=\"org.apache.maven.plugins.shade.resource.ServicesResourceTransformer\"/>
+      </transformers>
+    </configuration>
+  </execution></executions>
+</plugin>''')
+plugins.append(shade)
+tree.write('pom.xml', xml_declaration=True, encoding='UTF-8')
+"
 
 echo "=== Building with Maven (shaded JAR) ==="
 mvn package -DskipTests -q
