@@ -66,9 +66,8 @@ package-camel: build-camel ## Build Camel-Quarkus Docker image
 	docker build --platform $(PLATFORM) -f camel-quarkus/src/main/docker/Dockerfile.jvm -t $(CAMEL_IMG) camel-quarkus
 
 # -- OAUTHBEARER PoC ----------------------------------------------------
-KNATIVE_TAG  ?= knative-v1.22.1
-RECEIVER_BASE   := gcr.io/knative-releases/knative.dev/eventing-kafka-broker/cmd/receiver:$(KNATIVE_TAG)
-DISPATCHER_BASE := gcr.io/knative-releases/knative.dev/eventing-kafka-broker/cmd/dispatcher:$(KNATIVE_TAG)
+RECEIVER_BASE   := gcr.io/knative-releases/knative-kafka-broker-receiver-loom@sha256:e7d70e601a6bfbe81964793b557ab22d274e898718a3577352b15314266e0192
+DISPATCHER_BASE := gcr.io/knative-releases/knative-kafka-broker-dispatcher-loom@sha256:c0c6904f33d767d4c7255781085ebac2fbc72b88dc5f34d3588bb183bb825721
 RECEIVER_IMG_OB := $(ACR)/knative-kafka-receiver-oauthbearer:latest
 DISPATCHER_IMG_OB := $(ACR)/knative-kafka-dispatcher-oauthbearer:latest
 

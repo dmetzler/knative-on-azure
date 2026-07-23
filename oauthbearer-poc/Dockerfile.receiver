@@ -3,7 +3,7 @@
 #
 # Jib-built images use /app/libs/ for dependency JARs — anything there is on the classpath.
 
-ARG BASE_IMAGE=gcr.io/knative-releases/knative.dev/eventing-kafka-broker/cmd/receiver:knative-v1.22.1
+ARG BASE_IMAGE=gcr.io/knative-releases/knative-kafka-broker-receiver-loom@sha256:e7d70e601a6bfbe81964793b557ab22d274e898718a3577352b15314266e0192
 FROM ${BASE_IMAGE}
 
 COPY conduktor-azure-oauthbearer.jar /app/libs/conduktor-azure-oauthbearer.jar
