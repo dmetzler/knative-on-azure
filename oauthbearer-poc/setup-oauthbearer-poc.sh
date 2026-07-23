@@ -40,7 +40,7 @@ echo "OAUTHBEARER, nothing will override these properties from the secret."
 echo ""
 
 # The JAAS config for the Conduktor handler
-JAAS_CONFIG='org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required;'
+JAAS_CONFIG="org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required scope=\"https://${EVENTHUBS_NAMESPACE}.servicebus.windows.net/.default\";"
 CALLBACK_HANDLER='io.conduktor.kafka.security.oauthbearer.azure.AzureManagedIdentityCallbackHandler'
 
 echo "=== Creating/updating auth secret for OAUTHBEARER ==="
