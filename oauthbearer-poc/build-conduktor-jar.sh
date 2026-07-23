@@ -21,7 +21,7 @@ fi
 echo "=== Cloning conduktor/azure-kafka-oauthbearer ==="
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
-git clone --depth=1 https://github.com/conduktor/azure-kafka-oauthbearer.git "$BUILD_DIR"
+git clone --depth=1 --branch 0.5.0 https://github.com/conduktor/azure-kafka-oauthbearer.git "$BUILD_DIR"
 
 echo "=== Adding maven-shade-plugin for fat JAR ==="
 cd "$BUILD_DIR"
@@ -67,7 +67,7 @@ mvn package -DskipTests -q
 
 echo "=== Copying JAR ==="
 # The shade plugin replaces the original artifact
-JAR="target/azure-kafka-oauthbearer-0.7.0-SNAPSHOT.jar"
+JAR="target/azure-kafka-oauthbearer-0.5.0.jar"
 if [ ! -f "$JAR" ]; then
   JAR=$(find target -maxdepth 1 -name "*.jar" -not -name "*-sources*" -not -name "*-javadoc*" -not -name "original-*" | head -1)
 fi
