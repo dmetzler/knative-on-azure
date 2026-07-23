@@ -1,9 +1,12 @@
 # Derived data-plane receiver image with Conduktor Azure OAUTHBEARER handler
-# This adds the callback handler JAR to the classpath without modifying upstream code.
 #
-# Jib-built images use /app/libs/ for dependency JARs — anything there is on the classpath.
+# The Jib-built image uses -cp @/app/jib-classpath-file to define the classpath.
+# We must append our JAR to that file for it to be loaded.
 
 ARG BASE_IMAGE=gcr.io/knative-releases/knative-kafka-broker-receiver-loom@sha256:e7d70e601a6bfbe81964793b557ab22d274e898718a3577352b15314266e0192
 FROM ${BASE_IMAGE}
 
+USER root
 COPY conduktor-azure-oauthbearer.jar /app/libs/conduktor-azure-oauthbearer.jar
+RUN echo ":/app/libs/conduktor-azure-oauthbearer.jar" >> /app/jib-classpath-file
+USER 185
