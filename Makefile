@@ -65,6 +65,37 @@ build-camel: ## Build Camel-Quarkus app
 package-camel: build-camel ## Build Camel-Quarkus Docker image
 	docker build --platform $(PLATFORM) -f camel-quarkus/src/main/docker/Dockerfile.jvm -t $(CAMEL_IMG) camel-quarkus
 
+# -- OAUTHBEARER PoC ----------------------------------------------------
+KNATIVE_TAG  ?= knative-v1.22.1
+RECEIVER_BASE   := gcr.io/knative-releases/knative.dev/eventing-kafka-broker/cmd/receiver:$(KNATIVE_TAG)
+DISPATCHER_BASE := gcr.io/knative-releases/knative.dev/eventing-kafka-broker/cmd/dispatcher:$(KNATIVE_TAG)
+RECEIVER_IMG_OB := $(ACR)/knative-kafka-receiver-oauthbearer:latest
+DISPATCHER_IMG_OB := $(ACR)/knative-kafka-dispatcher-oauthbearer:latest
+
+build-conduktor-jar: ## Build Conduktor Azure OAUTHBEARER handler from source
+	./oauthbearer-poc/build-conduktor-jar.sh
+
+build-oauthbearer-poc: build-conduktor-jar ## Build derived data-plane images with OAUTHBEARER handler
+	docker build --platform $(PLATFORM) \
+		--build-arg BASE_IMAGE=$(RECEIVER_BASE) \
+		-f oauthbearer-poc/Dockerfile.receiver \
+		-t $(RECEIVER_IMG_OB) \
+		oauthbearer-poc/
+	docker build --platform $(PLATFORM) \
+		--build-arg BASE_IMAGE=$(DISPATCHER_BASE) \
+		-f oauthbearer-poc/Dockerfile.dispatcher \
+		-t $(DISPATCHER_IMG_OB) \
+		oauthbearer-poc/
+
+push-oauthbearer-poc: ## Push derived OAUTHBEARER images to ACR
+	docker push $(RECEIVER_IMG_OB)
+	docker push $(DISPATCHER_IMG_OB)
+
+deploy-oauthbearer-poc: ## Deploy OAUTHBEARER PoC (ConfigMap + patched images)
+	./oauthbearer-poc/setup-oauthbearer-poc.sh
+
+oauthbearer-poc: acr-login build-oauthbearer-poc push-oauthbearer-poc deploy-oauthbearer-poc ## Full OAUTHBEARER PoC pipeline
+
 # -- Clean --------------------------------------------------------------
 clean: ## Clean build artifacts
 	cd camel-quarkus && mvn clean || true

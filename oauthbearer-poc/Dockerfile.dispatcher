@@ -1,0 +1,5 @@
+# Derived data-plane dispatcher image with Conduktor Azure OAUTHBEARER handler
+ARG BASE_IMAGE=gcr.io/knative-releases/knative.dev/eventing-kafka-broker/cmd/dispatcher:knative-v1.22.1
+FROM ${BASE_IMAGE}
+
+COPY conduktor-azure-oauthbearer.jar /app/libs/conduktor-azure-oauthbearer.jar
