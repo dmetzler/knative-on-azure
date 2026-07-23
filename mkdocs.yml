@@ -28,6 +28,7 @@ nav:
       - 6. Camel-K + Service Bus Bridge: deploy/06-camel-k-asb.md
       - 7. Production Considerations: deploy/07-production-considerations.md
   - Troubleshooting: troubleshooting.md
+  - OAUTHBEARER Recon (Phase 0): phase0-recon.md
   - Teardown: teardown.md
 
 markdown_extensions:
